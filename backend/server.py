@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from ai_bridge import transformer_intent
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
@@ -1385,7 +1387,15 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
         route = parsed.path
 
         if route == "/api/discover/intent":
-            self.send_json({"intent": make_intent(payload), "recommendations": recommend_projects(payload), "entrySuggestions": ENTRY_SUGGESTIONS})
+            transformer = transformer_intent(payload) if payload.get("useTransformer") else {"available": False, "reason": "set useTransformer=true to call checkpoint inference"}
+            self.send_json({
+                "intent": make_intent(payload),
+                "recommendations": recommend_projects(payload),
+                "transformer": transformer,
+                "entrySuggestions": ENTRY_SUGGESTIONS,
+            })
+        elif route == "/api/ai/intent/transformer":
+            self.send_json(transformer_intent(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":
