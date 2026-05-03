@@ -56,6 +56,16 @@ class MakerTokenizer:
                 index += 1
                 continue
 
+            special = None
+            for token in SPECIAL_TOKENS:
+                if text[index:].startswith(token):
+                    special = token
+                    break
+            if special:
+                tokens.append(special)
+                index += len(special)
+                continue
+
             matched = None
             lowered = text[index:].lower()
             for term in self.domain_terms:
