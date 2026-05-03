@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import transformer_intent
+from ai_bridge import transformer_intent, transformer_project_graph
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1396,6 +1396,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             })
         elif route == "/api/ai/intent/transformer":
             self.send_json(transformer_intent(payload))
+        elif route == "/api/ai/project-graph/transformer":
+            self.send_json(transformer_project_graph(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":

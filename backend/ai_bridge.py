@@ -6,6 +6,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_DIR = ROOT / "runs" / "maker_intent_transformer"
+DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -56,5 +57,49 @@ def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"Transformer inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def transformer_project_graph(payload: dict[str, Any]) -> dict[str, Any]:
+    text = " ".join(
+        str(payload.get(key, ""))
+        for key in ["text", "mood", "problem", "selectedOption", "inventory", "budget"]
+        if payload.get(key)
+    ).strip()
+    if not text:
+        text = "作りたいものは分からない。Lチカの次に進みたい。"
+
+    model_dir = Path(payload.get("modelDir") or DEFAULT_GRAPH_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.makergraph.train_project_graph_generator --device cuda --amp",
+        }
+
+    try:
+        from ai_models.makergraph.generate_project_graph import ProjectGraphGenerator
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"PyTorch graph generator import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        generator = ProjectGraphGenerator(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        result = generator.generate(text, max_new_tokens=int(payload.get("maxNewTokens") or 96))
+        return {
+            "available": True,
+            "modelDir": str(model_dir),
+            **result,
+        }
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"Project graph Transformer inference failed: {exc}",
             "modelDir": str(model_dir),
         }
