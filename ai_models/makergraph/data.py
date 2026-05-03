@@ -44,8 +44,10 @@ def collect_training_texts(records: list[dict[str, Any]]) -> list[str]:
     for record in records:
         texts.append(record["query"])
         texts.append(record.get("positive_project_text") or project_to_document(record["positive_project"]))
+        texts.append(project_to_graph_sequence(record["positive_project"]))
     for project in PROJECT_CATALOG:
         texts.append(project_to_document(project))
+        texts.append(project_to_graph_sequence(project))
     return texts
 
 
@@ -84,5 +86,59 @@ def collate_batch(items: list[dict[str, Any]]) -> dict[str, Any]:
         "project_mask": torch.stack([item["project_mask"] for item in items]),
         "profile": torch.stack([item["profile"] for item in items]),
         "query_text": [item["query_text"] for item in items],
+        "project_id": [item["project_id"] for item in items],
+    }
+
+
+def project_to_graph_sequence(project: dict[str, Any]) -> str:
+    graph = list(project.get("graph", []))
+    skills = [f"skill:{skill}" for skill in project.get("skills", [])]
+    budget = [f"cost:{project.get('budget', 'unknown')}"]
+    risk = [f"risk:difficulty_{project.get('difficulty', 1)}"]
+    failures = [f"failure:{failure}" for failure in project.get("failure_logs", [])]
+    return " <sep> ".join(graph + skills + budget + risk + failures)
+
+
+class ProjectGraphDataset(Dataset):
+    def __init__(self, records: list[dict[str, Any]], tokenizer: MakerTokenizer, max_length: int) -> None:
+        self.records = records
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self) -> int:
+        return len(self.records)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        record = self.records[index]
+        source_ids, source_mask = self.tokenizer.encode(record["query"], self.max_length, "<query>")
+        graph_sequence = project_to_graph_sequence(record["positive_project"])
+        target_ids, target_mask = self.tokenizer.encode(graph_sequence, self.max_length, "<graph>")
+        decoder_input = target_ids[:-1]
+        decoder_mask = target_mask[:-1]
+        labels = target_ids[1:]
+        label_mask = target_mask[1:]
+        return {
+            "source_ids": torch.tensor(source_ids, dtype=torch.long),
+            "source_mask": torch.tensor(source_mask, dtype=torch.bool),
+            "decoder_input_ids": torch.tensor(decoder_input, dtype=torch.long),
+            "decoder_input_mask": torch.tensor(decoder_mask, dtype=torch.bool),
+            "labels": torch.tensor(labels, dtype=torch.long),
+            "label_mask": torch.tensor(label_mask, dtype=torch.bool),
+            "query_text": record["query"],
+            "graph_text": graph_sequence,
+            "project_id": record["positive_project"]["id"],
+        }
+
+
+def collate_graph_batch(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "source_ids": torch.stack([item["source_ids"] for item in items]),
+        "source_mask": torch.stack([item["source_mask"] for item in items]),
+        "decoder_input_ids": torch.stack([item["decoder_input_ids"] for item in items]),
+        "decoder_input_mask": torch.stack([item["decoder_input_mask"] for item in items]),
+        "labels": torch.stack([item["labels"] for item in items]),
+        "label_mask": torch.stack([item["label_mask"] for item in items]),
+        "query_text": [item["query_text"] for item in items],
+        "graph_text": [item["graph_text"] for item in items],
         "project_id": [item["project_id"] for item in items],
     }
