@@ -12,6 +12,16 @@
 - Loss: symmetric InfoNCE + difficulty/budget/novelty profile regression
 - CUDA: `--device cuda --amp` で mixed precision training
 
+## Dataset Generation
+
+seedだけでは小さすぎるので、制作意図・予算・所持部品・安全制約を組み合わせた合成データを生成します。
+
+```bash
+python -m ai_models.makergraph.generate_synthetic_intent_data \
+  --output data/intent_training_synthetic.jsonl \
+  --records-per-project 160
+```
+
 ## Colab / CUDA Training
 
 Colabで `notebooks/maker_intent_transformer_colab.ipynb` を開き、ランタイムをGPUにしてください。
@@ -19,10 +29,22 @@ Colabで `notebooks/maker_intent_transformer_colab.ipynb` を開き、ランタ�
 ```bash
 pip install -r requirements-ml.txt
 python -m ai_models.makergraph.train_intent_encoder \
-  --data data/intent_training_seed.jsonl \
+  --data data/intent_training_synthetic.jsonl \
   --output runs/maker_intent_transformer \
   --epochs 40 \
   --batch-size 5 \
+  --device cuda \
+  --amp
+```
+
+Project Graph Generator:
+
+```bash
+python -m ai_models.makergraph.train_project_graph_generator \
+  --data data/intent_training_synthetic.jsonl \
+  --output runs/project_graph_transformer \
+  --epochs 40 \
+  --batch-size 8 \
   --device cuda \
   --amp
 ```
@@ -35,6 +57,25 @@ python -m ai_models.makergraph.infer \
   --text "作りたいものは分からない。予算は5000円。かわいいものがいい。" \
   --device cuda \
   --top-k 3
+```
+
+評価:
+
+```bash
+python -m ai_models.makergraph.evaluate_retrieval \
+  --model-dir runs/maker_intent_transformer \
+  --data data/intent_training_synthetic.jsonl \
+  --device cuda \
+  --top-k 3
+```
+
+Graph生成:
+
+```bash
+python -m ai_models.makergraph.generate_project_graph \
+  --model-dir runs/project_graph_transformer \
+  --text "植物を枯らすので水やり通知を作りたい。自動ポンプは怖い。" \
+  --device cuda
 ```
 
 ## Local API
@@ -57,4 +98,10 @@ Transformer endpoint:
 curl -X POST http://127.0.0.1:8765/api/ai/intent/transformer \
   -H "Content-Type: application/json" \
   -d "{\"text\":\"ESP32を持っている。かわいい机上作品を作りたい\", \"topK\":3}"
+```
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/ai/project-graph/transformer \
+  -H "Content-Type: application/json" \
+  -d "{\"text\":\"ESP32を持っている。かわいい机上作品を作りたい\"}"
 ```
