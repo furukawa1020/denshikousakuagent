@@ -159,7 +159,7 @@
     <main>
       <header>
         <h1>Lチカのつづき</h1>
-        <p>Maker Intent Transformer の学習済みチェックポイントを使って、曖昧な制作意図から作品候補を検索します。</p>
+        <p>Maker Intent Transformer と Project Graph Transformer の学習済みチェックポイントを使って、曖昧な制作意図から作品候補と作品グラフを生成します。</p>
       </header>
 
       <div class="workspace">
@@ -190,22 +190,31 @@
       const statusText = document.querySelector("#status");
       const dot = document.querySelector("#dot");
 
+      async function postJson(url, body) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        return response.json();
+      }
+
       async function runInference() {
         button.disabled = true;
         statusText.textContent = "推論中";
         try {
-          const response = await fetch("/api/ai/intent/transformer", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: document.querySelector("#intent").value,
-              topK: Number(document.querySelector("#topK").value || 3),
-            }),
-          });
-          const data = await response.json();
+          const request = {
+            text: document.querySelector("#intent").value,
+            topK: Number(document.querySelector("#topK").value || 3),
+          };
+          const [intent, projectGraph] = await Promise.all([
+            postJson("/api/ai/intent/transformer", request),
+            postJson("/api/ai/project-graph/transformer", request),
+          ]);
+          const data = { intent, projectGraph };
           output.textContent = JSON.stringify(data, null, 2);
-          dot.classList.toggle("ready", Boolean(data.available));
-          statusText.textContent = data.available ? "Transformer checkpoint loaded" : "checkpoint not loaded";
+          dot.classList.toggle("ready", Boolean(intent.available || projectGraph.available));
+          statusText.textContent = intent.available || projectGraph.available ? "checkpoint loaded" : "checkpoint not loaded";
         } catch (error) {
           output.textContent = String(error);
           dot.classList.remove("ready");
