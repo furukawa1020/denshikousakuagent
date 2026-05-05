@@ -9,8 +9,19 @@
 - `MakerIntentTransformer`: ユーザー発話と作品/部品/回路/失敗ログ文書を同じ埋め込み空間へ写像
 - `MakerGraphDualEncoder`: query tower と project tower を対照学習する二塔型推薦モデル
 - `ProjectGraphSequenceTransformer`: intent から graph token を生成する Transformer decoder の土台
+- `WireCheckNet`: 配線写真を部品bbox・ジャンパ線端点・危険ミスへ変換するCNN/ViT + Transformer decoder
 - Loss: symmetric InfoNCE + difficulty/budget/novelty profile regression
 - CUDA: `--device cuda --amp` で mixed precision training
+
+## Local RTX 5060 Setup
+
+Windows + RTX 5060では、NVIDIAドライバが新しければPyTorchのCUDA 13.0 wheelを使えます。
+
+```bash
+python -m pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 --index-url https://download.pytorch.org/whl/cu130
+python -m pip install pillow
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
 
 ## Dataset Generation
 
@@ -78,6 +89,39 @@ python -m ai_models.makergraph.generate_project_graph \
   --device cuda
 ```
 
+WireCheckNet:
+
+```bash
+python -m ai_models.wirecheck.train_wirecheck \
+  --output runs/wirechecknet \
+  --samples 8000 \
+  --epochs 25 \
+  --batch-size 32 \
+  --device cuda \
+  --amp
+```
+
+8GB VRAMで重い場合は `--batch-size 16` に下げます。まず動作確認だけなら:
+
+```bash
+python -m ai_models.wirecheck.train_wirecheck \
+  --output runs/wirechecknet_smoke \
+  --samples 256 \
+  --epochs 2 \
+  --batch-size 8 \
+  --device cuda \
+  --amp
+```
+
+WireCheckNet推論:
+
+```bash
+python -m ai_models.wirecheck.infer_wirecheck \
+  --model-dir runs/wirechecknet \
+  --synthetic \
+  --device cuda
+```
+
 ## Local API
 
 標準ライブラリだけで起動できます。学習済みチェックポイントが `runs/maker_intent_transformer/best.pt` にある場合は、APIからTransformer推論も呼べます。
@@ -104,4 +148,10 @@ curl -X POST http://127.0.0.1:8765/api/ai/intent/transformer \
 curl -X POST http://127.0.0.1:8765/api/ai/project-graph/transformer \
   -H "Content-Type: application/json" \
   -d "{\"text\":\"ESP32を持っている。かわいい机上作品を作りたい\"}"
+```
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/ai/wirechecknet \
+  -H "Content-Type: application/json" \
+  -d "{\"synthetic\":true}"
 ```
