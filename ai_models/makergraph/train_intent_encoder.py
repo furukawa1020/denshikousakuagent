@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, random_split
 
 from .config import MakerIntentConfig
 from .data import IntentProjectDataset, collect_training_texts, collate_batch, load_jsonl, write_seed_jsonl
-from .losses import profile_regression_loss, retrieval_accuracy, symmetric_contrastive_loss
+from .losses import labeled_retrieval_accuracy, multi_positive_contrastive_loss, profile_regression_loss
 from .model import MakerGraphDualEncoder, count_parameters
 from .tokenizer import MakerTokenizer
 
@@ -126,7 +126,7 @@ def run_epoch(
         with torch.set_grad_enabled(train):
             with torch.cuda.amp.autocast(enabled=amp and device.type == "cuda"):
                 outputs = model(query_ids, query_mask, project_ids, project_mask)
-                contrastive = symmetric_contrastive_loss(outputs["logits"])
+                contrastive = multi_positive_contrastive_loss(outputs["logits"], batch["project_id"])
                 profile_loss = profile_regression_loss(outputs["query_profile"], profile)
                 loss = contrastive + 0.15 * profile_loss
 
@@ -139,7 +139,7 @@ def run_epoch(
                 scaler.update()
 
         total_loss += float(loss.detach().cpu())
-        total_retrieval += retrieval_accuracy(outputs["logits"].detach(), top_k=1)
+        total_retrieval += labeled_retrieval_accuracy(outputs["logits"].detach(), batch["project_id"], top_k=1)
         total_profile += float(profile_loss.detach().cpu())
         steps += 1
     return {
