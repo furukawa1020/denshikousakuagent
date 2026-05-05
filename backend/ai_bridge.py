@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DEFAULT_MODEL_DIR = ROOT / "runs" / "maker_intent_transformer"
 DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
 DEFAULT_WIRECHECK_MODEL_DIR = ROOT / "runs" / "wirechecknet"
