@@ -7,6 +7,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL_DIR = ROOT / "runs" / "maker_intent_transformer"
 DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
+DEFAULT_WIRECHECK_MODEL_DIR = ROOT / "runs" / "wirechecknet"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -101,5 +102,43 @@ def transformer_project_graph(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"Project graph Transformer inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def wirechecknet_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    model_dir = Path(payload.get("modelDir") or DEFAULT_WIRECHECK_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    if not checkpoint.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.wirecheck.train_wirecheck --device cuda --amp",
+        }
+
+    try:
+        from ai_models.wirecheck.infer_wirecheck import WireCheckInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"WireCheckNet import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        service = WireCheckInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        threshold = float(payload.get("threshold") or 0.35)
+        if payload.get("imageBase64"):
+            result = service.predict_base64(str(payload["imageBase64"]), score_threshold=threshold)
+        else:
+            result = service.predict_synthetic(score_threshold=threshold)
+        return {
+            "available": True,
+            **result,
+        }
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"WireCheckNet inference failed: {exc}",
             "modelDir": str(model_dir),
         }
