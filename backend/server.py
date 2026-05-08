@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import neural_bom_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
+from ai_bridge import neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1402,6 +1402,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(wirechecknet_inference(payload))
         elif route == "/api/ai/bom/estimator":
             self.send_json(neural_bom_inference(payload))
+        elif route == "/api/ai/skillrec":
+            self.send_json(skillrec_inference(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":
@@ -1420,6 +1422,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(wiring_check(payload))
         elif route == "/api/skills/update":
             self.send_json({"updated": True, "skillState": skill_state(), "received": payload})
+        elif route == "/api/recommendations/neural-next":
+            self.send_json(skillrec_inference(payload))
         elif route == "/api/recommendations/feedback":
             self.send_json({"saved": True, "message": "feedback logged for ranking model"})
         else:
