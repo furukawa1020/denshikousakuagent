@@ -12,6 +12,7 @@ DEFAULT_MODEL_DIR = ROOT / "runs" / "maker_intent_transformer"
 DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
 DEFAULT_WIRECHECK_MODEL_DIR = ROOT / "runs" / "wirechecknet"
 DEFAULT_BOM_MODEL_DIR = ROOT / "runs" / "bom_estimator"
+DEFAULT_SKILLREC_MODEL_DIR = ROOT / "runs" / "skillrec_transformer"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -182,5 +183,38 @@ def neural_bom_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"BOM estimator inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def skillrec_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    model_dir = Path(payload.get("modelDir") or DEFAULT_SKILLREC_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    if not checkpoint.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.skillrec.train_skillrec --device cuda --amp",
+        }
+
+    try:
+        from ai_models.skillrec.infer_skillrec import SkillRecInference, default_events
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"SkillRec import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        events = payload.get("events")
+        if not isinstance(events, list):
+            events = default_events()
+        service = SkillRecInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        return service.predict(events)
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"SkillRec inference failed: {exc}",
             "modelDir": str(model_dir),
         }
