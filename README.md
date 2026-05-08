@@ -10,6 +10,7 @@
 - `MakerGraphDualEncoder`: query tower と project tower を対照学習する二塔型推薦モデル
 - `ProjectGraphSequenceTransformer`: intent から graph token を生成する Transformer decoder の土台
 - `NeuralBOMEstimator`: 作品グラフから必要部品のマルチラベル推定と価格分位点を出すTransformer
+- `SkillRecTransformer`: 制作ログ系列からスキル状態と次作品推薦を同時に推定するDKT風Transformer
 - `WireCheckNet`: 配線写真を部品bbox・ジャンパ線端点・危険ミスへ変換するCNN/ViT + Transformer decoder
 - Loss: symmetric InfoNCE + difficulty/budget/novelty profile regression
 - CUDA: `--device cuda --amp` で mixed precision training
@@ -144,6 +145,26 @@ python -m ai_models.bom.infer_bom \
   --device cuda
 ```
 
+Skill State / Next Project Recommendation:
+
+```bash
+python -m ai_models.skillrec.generate_synthetic_skill_data \
+  --output data/skillrec_training_gpu.jsonl \
+  --records 8000
+
+python -m ai_models.skillrec.train_skillrec \
+  --data data/skillrec_training_gpu.jsonl \
+  --output runs/skillrec_transformer \
+  --epochs 24 \
+  --batch-size 64 \
+  --device cuda \
+  --amp
+
+python -m ai_models.skillrec.infer_skillrec \
+  --model-dir runs/skillrec_transformer \
+  --device cuda
+```
+
 ## Local API
 
 標準ライブラリだけで起動できます。学習済みチェックポイントが `runs/maker_intent_transformer/best.pt` にある場合は、APIからTransformer推論も呼べます。
@@ -188,4 +209,10 @@ curl -X POST http://127.0.0.1:8765/api/ai/wirechecknet \
 curl -X POST http://127.0.0.1:8765/api/ai/bom/estimator \
   -H "Content-Type: application/json" \
   -d "{\"text\":\"水やり通知を作りたい。ESP32とLEDと抵抗は持っている。予算5000円。\"}"
+```
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/ai/skillrec \
+  -H "Content-Type: application/json" \
+  -d "{}"
 ```
