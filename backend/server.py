@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import transformer_intent, transformer_project_graph, wirechecknet_inference
+from ai_bridge import neural_bom_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1400,6 +1400,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(transformer_project_graph(payload))
         elif route == "/api/ai/wirechecknet":
             self.send_json(wirechecknet_inference(payload))
+        elif route == "/api/ai/bom/estimator":
+            self.send_json(neural_bom_inference(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":
