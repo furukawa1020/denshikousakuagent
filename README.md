@@ -130,6 +130,12 @@ python -m ai_models.wirecheck.infer_wirecheck \
 python backend/server.py
 ```
 
+ローカルGPU学習済みモデルをAPIから使う場合は、PyTorchを入れた仮想環境で起動します。
+
+```bash
+.\.venv\Scripts\python.exe backend/server.py
+```
+
 Health check:
 
 ```bash
