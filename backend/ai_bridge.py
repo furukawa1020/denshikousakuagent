@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
 DEFAULT_MODEL_DIR = ROOT / "runs" / "maker_intent_transformer"
 DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
 DEFAULT_WIRECHECK_MODEL_DIR = ROOT / "runs" / "wirechecknet"
+DEFAULT_BOM_MODEL_DIR = ROOT / "runs" / "bom_estimator"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -143,5 +144,43 @@ def wirechecknet_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"WireCheckNet inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def neural_bom_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    text = " ".join(
+        str(payload.get(key, ""))
+        for key in ["text", "project", "projectGraph", "inventory", "budget", "selectedOption"]
+        if payload.get(key)
+    ).strip()
+    if not text:
+        text = "水やり通知を作りたい。ESP32とLEDと抵抗は持っている。予算5000円。"
+
+    model_dir = Path(payload.get("modelDir") or DEFAULT_BOM_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    if not checkpoint.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.bom.train_bom_estimator --device cuda --amp",
+        }
+
+    try:
+        from ai_models.bom.infer_bom import BOMInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"BOM estimator import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        service = BOMInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        return service.predict(text, threshold=float(payload.get("threshold") or 0.42))
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"BOM estimator inference failed: {exc}",
             "modelDir": str(model_dir),
         }
