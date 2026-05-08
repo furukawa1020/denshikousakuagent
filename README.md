@@ -9,6 +9,7 @@
 - `MakerIntentTransformer`: ユーザー発話と作品/部品/回路/失敗ログ文書を同じ埋め込み空間へ写像
 - `MakerGraphDualEncoder`: query tower と project tower を対照学習する二塔型推薦モデル
 - `ProjectGraphSequenceTransformer`: intent から graph token を生成する Transformer decoder の土台
+- `NeuralBOMEstimator`: 作品グラフから必要部品のマルチラベル推定と価格分位点を出すTransformer
 - `WireCheckNet`: 配線写真を部品bbox・ジャンパ線端点・危険ミスへ変換するCNN/ViT + Transformer decoder
 - Loss: symmetric InfoNCE + difficulty/budget/novelty profile regression
 - CUDA: `--device cuda --amp` で mixed precision training
@@ -122,6 +123,27 @@ python -m ai_models.wirecheck.infer_wirecheck \
   --device cuda
 ```
 
+Neural BOM Estimator:
+
+```bash
+python -m ai_models.bom.generate_synthetic_bom_data \
+  --output data/bom_training_gpu.jsonl \
+  --records-per-project 600
+
+python -m ai_models.bom.train_bom_estimator \
+  --data data/bom_training_gpu.jsonl \
+  --output runs/bom_estimator \
+  --epochs 24 \
+  --batch-size 32 \
+  --device cuda \
+  --amp
+
+python -m ai_models.bom.infer_bom \
+  --model-dir runs/bom_estimator \
+  --text "水やり通知を作りたい。ESP32とLEDと抵抗は持っている。予算5000円。" \
+  --device cuda
+```
+
 ## Local API
 
 標準ライブラリだけで起動できます。学習済みチェックポイントが `runs/maker_intent_transformer/best.pt` にある場合は、APIからTransformer推論も呼べます。
@@ -160,4 +182,10 @@ curl -X POST http://127.0.0.1:8765/api/ai/project-graph/transformer \
 curl -X POST http://127.0.0.1:8765/api/ai/wirechecknet \
   -H "Content-Type: application/json" \
   -d "{\"synthetic\":true}"
+```
+
+```bash
+curl -X POST http://127.0.0.1:8765/api/ai/bom/estimator \
+  -H "Content-Type: application/json" \
+  -d "{\"text\":\"水やり通知を作りたい。ESP32とLEDと抵抗は持っている。予算5000円。\"}"
 ```
