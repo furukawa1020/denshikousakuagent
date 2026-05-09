@@ -13,6 +13,7 @@ DEFAULT_GRAPH_MODEL_DIR = ROOT / "runs" / "project_graph_transformer"
 DEFAULT_WIRECHECK_MODEL_DIR = ROOT / "runs" / "wirechecknet"
 DEFAULT_BOM_MODEL_DIR = ROOT / "runs" / "bom_estimator"
 DEFAULT_SKILLREC_MODEL_DIR = ROOT / "runs" / "skillrec_transformer"
+DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -216,5 +217,36 @@ def skillrec_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"SkillRec inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def neural_agent_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    model_dir = Path(payload.get("modelDir") or DEFAULT_NEURAL_AGENT_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.neural_agents.train_neural_agents --device cuda --amp",
+        }
+
+    try:
+        from ai_models.neural_agents.infer_neural_agents import NeuralAgentInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"NeuralAgent import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        service = NeuralAgentInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        return service.predict(payload)
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"NeuralAgent inference failed: {exc}",
             "modelDir": str(model_dir),
         }
