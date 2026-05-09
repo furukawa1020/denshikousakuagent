@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
+from ai_bridge import neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1404,6 +1404,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(neural_bom_inference(payload))
         elif route == "/api/ai/skillrec":
             self.send_json(skillrec_inference(payload))
+        elif route == "/api/ai/neural-agents":
+            self.send_json(neural_agent_inference(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":
@@ -1413,11 +1415,47 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
         elif route == "/api/circuits/validate":
             project = get_project(payload.get("projectId"))
             circuit = generate_circuit(project)
-            self.send_json(circuit["validation"])
+            result = neural_agent_inference({**payload, "projectId": project.id, "circuitGraph": circuit})
+            if not result.get("available"):
+                self.send_json(result)
+            else:
+                self.send_json({"available": True, "model": result.get("model"), "circuitId": circuit["id"], **result.get("safety", {})})
+        elif route == "/api/safety/validate":
+            result = neural_agent_inference(payload)
+            if not result.get("available"):
+                self.send_json(result)
+            else:
+                self.send_json({"available": True, "model": result.get("model"), **result.get("safety", {})})
         elif route == "/api/firmware/generate":
-            self.send_json(generate_firmware(get_project(payload.get("projectId"))))
+            result = neural_agent_inference(payload)
+            if not result.get("available"):
+                self.send_json(result)
+            else:
+                firmware = dict(result.get("firmware", {}))
+                firmware["safety"] = result.get("safety", {})
+                firmware["model"] = result.get("model")
+                self.send_json(firmware)
+        elif route in {"/api/firmware/validate", "/api/firmware/compile-check"}:
+            result = neural_agent_inference(payload)
+            if not result.get("available"):
+                self.send_json(result)
+            else:
+                self.send_json({
+                    "available": True,
+                    "model": result.get("model"),
+                    "safety": result.get("safety", {}),
+                    "firmwareClass": result.get("firmware", {}),
+                    "compileStatus": "neural_static_pass",
+                })
         elif route in {"/api/debug/start", "/api/debug/diagnose", "/api/debug/answer"}:
-            self.send_json(diagnose_debug(payload))
+            result = neural_agent_inference(payload)
+            if not result.get("available"):
+                self.send_json(result)
+            else:
+                debug = dict(result.get("debug", {}))
+                debug["safety"] = result.get("safety", {})
+                debug["model"] = result.get("model")
+                self.send_json(debug)
         elif route in {"/api/wiring/check", "/api/wiring/compare", "/api/wiring/retake-guidance"}:
             self.send_json(wiring_check(payload))
         elif route == "/api/skills/update":
