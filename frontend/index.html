@@ -207,17 +207,18 @@
             text: document.querySelector("#intent").value,
             topK: Number(document.querySelector("#topK").value || 3),
           };
-          const [intent, projectGraph, bom, skillrec, wirecheck] = await Promise.all([
+          const [intent, projectGraph, bom, skillrec, wirecheck, neuralAgents] = await Promise.all([
             postJson("/api/ai/intent/transformer", request),
             postJson("/api/ai/project-graph/transformer", request),
             postJson("/api/ai/bom/estimator", request),
             postJson("/api/ai/skillrec", {}),
             postJson("/api/ai/wirechecknet", { synthetic: true }),
+            postJson("/api/ai/neural-agents", request),
           ]);
-          const data = { intent, projectGraph, bom, skillrec, wirecheck };
+          const data = { intent, projectGraph, bom, skillrec, wirecheck, neuralAgents };
           output.textContent = JSON.stringify(data, null, 2);
-          dot.classList.toggle("ready", Boolean(intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available));
-          statusText.textContent = intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available ? "checkpoint loaded" : "checkpoint not loaded";
+          dot.classList.toggle("ready", Boolean(intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available || neuralAgents.available));
+          statusText.textContent = intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available || neuralAgents.available ? "checkpoint loaded" : "checkpoint not loaded";
         } catch (error) {
           output.textContent = String(error);
           dot.classList.remove("ready");
