@@ -16,6 +16,7 @@ DEFAULT_SKILLREC_MODEL_DIR = ROOT / "runs" / "skillrec_transformer"
 DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
+DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -312,5 +313,36 @@ def inventory_matcher_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"InventoryMatcher inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def tutorial_agent_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    model_dir = Path(payload.get("modelDir") or DEFAULT_TUTORIAL_AGENT_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.tutorial_agent.train_tutorial_agent --device cuda --amp",
+        }
+
+    try:
+        from ai_models.tutorial_agent.infer_tutorial_agent import TutorialAgentInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialAgent import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        service = TutorialAgentInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        return service.predict(payload)
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialAgent inference failed: {exc}",
             "modelDir": str(model_dir),
         }

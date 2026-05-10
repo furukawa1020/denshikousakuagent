@@ -7,16 +7,20 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f4f1ea;
+        --bg: #f6f7f5;
         --panel: #ffffff;
         --ink: #172426;
-        --muted: #667174;
-        --line: #d7dddc;
+        --muted: #637074;
+        --line: #d9dfdc;
         --accent: #0f766e;
-        --accent-weak: #e2f3f0;
-        --warn: #b45309;
+        --accent-weak: #e1f3f0;
+        --blue: #1d4ed8;
+        --blue-weak: #e7efff;
+        --warn: #a16207;
+        --warn-weak: #fff7db;
         --danger: #b91c1c;
-        --code: #142022;
+        --danger-weak: #fee2e2;
+        --code: #132024;
       }
 
       * {
@@ -31,9 +35,9 @@
       }
 
       main {
-        max-width: 1280px;
+        max-width: 1360px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 22px;
       }
 
       header {
@@ -41,7 +45,7 @@
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 16px;
         align-items: end;
-        margin-bottom: 18px;
+        margin-bottom: 16px;
       }
 
       h1,
@@ -52,7 +56,7 @@
       }
 
       h1 {
-        font-size: 34px;
+        font-size: 32px;
         letter-spacing: 0;
       }
 
@@ -69,14 +73,14 @@
       .subtitle {
         margin-top: 6px;
         color: var(--muted);
-        line-height: 1.6;
+        line-height: 1.55;
       }
 
       .status {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        min-width: 180px;
+        min-width: 190px;
         justify-content: flex-end;
         color: var(--muted);
         font-size: 14px;
@@ -95,8 +99,8 @@
 
       .layout {
         display: grid;
-        grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
-        gap: 16px;
+        grid-template-columns: minmax(320px, 0.78fr) minmax(0, 1.22fr);
+        gap: 14px;
       }
 
       .panel,
@@ -109,6 +113,7 @@
 
       .panel {
         padding: 16px;
+        align-self: start;
       }
 
       .stack {
@@ -119,7 +124,7 @@
       label {
         display: block;
         margin-bottom: 7px;
-        font-weight: 700;
+        font-weight: 750;
       }
 
       textarea,
@@ -128,16 +133,20 @@
         width: 100%;
         border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 11px 12px;
+        padding: 10px 11px;
         background: #fff;
         color: var(--ink);
         font: inherit;
       }
 
       textarea {
-        min-height: 136px;
+        min-height: 116px;
         resize: vertical;
         line-height: 1.55;
+      }
+
+      .compact textarea {
+        min-height: 74px;
       }
 
       .form-grid {
@@ -166,7 +175,7 @@
         border-color: var(--accent);
         background: var(--accent-weak);
         color: #0f4f4a;
-        font-weight: 700;
+        font-weight: 750;
       }
 
       .actions {
@@ -176,17 +185,27 @@
         align-items: center;
       }
 
-      button.primary {
-        border: 0;
+      button.primary,
+      button.secondary {
         border-radius: 8px;
-        padding: 12px 18px;
-        color: #fff;
-        background: var(--accent);
+        padding: 11px 16px;
         font-weight: 800;
         cursor: pointer;
       }
 
-      button.primary:disabled {
+      button.primary {
+        border: 0;
+        color: #fff;
+        background: var(--accent);
+      }
+
+      button.secondary {
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: #fff;
+      }
+
+      button:disabled {
         opacity: 0.65;
         cursor: wait;
       }
@@ -209,19 +228,21 @@
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 10px;
+        margin-top: 10px;
       }
 
       .project-card {
         padding: 13px;
         display: grid;
         gap: 8px;
-        min-height: 142px;
+        min-height: 132px;
       }
 
       .meta {
         display: flex;
         flex-wrap: wrap;
         gap: 6px;
+        margin-top: 9px;
       }
 
       .pill {
@@ -232,7 +253,7 @@
         background: #eef1f1;
         color: #3d4a4d;
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 750;
       }
 
       .pill.good {
@@ -240,13 +261,18 @@
         color: #0f4f4a;
       }
 
+      .pill.info {
+        background: var(--blue-weak);
+        color: var(--blue);
+      }
+
       .pill.warn {
-        background: #fff7ed;
+        background: var(--warn-weak);
         color: var(--warn);
       }
 
       .pill.danger {
-        background: #fee2e2;
+        background: var(--danger-weak);
         color: var(--danger);
       }
 
@@ -277,9 +303,41 @@
         text-align: right;
       }
 
+      .timeline {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: 34px 1fr;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .num {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--accent-weak);
+        color: #0f4f4a;
+        font-weight: 850;
+        font-size: 13px;
+      }
+
+      ul {
+        margin: 9px 0 0;
+        padding-left: 19px;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
       pre {
         margin: 10px 0 0;
-        max-height: 420px;
+        max-height: 430px;
         overflow: auto;
         border-radius: 8px;
         padding: 13px;
@@ -314,11 +372,11 @@
       <header>
         <div>
           <h1>Lチカのつづき</h1>
-          <p class="subtitle">気分・予算・持ち物から、作れる作品とコードまでつなぎます。</p>
+          <p class="subtitle">気分・予算・持ち物・詰まり具合から、作るもの、買うもの、配線、コード、次の一手までつなぎます。</p>
         </div>
         <div class="status">
           <span class="dot" id="dot"></span>
-          <span id="statusText">待機中</span>
+          <span id="statusText">起動中</span>
         </div>
       </header>
 
@@ -326,7 +384,7 @@
         <section class="panel stack">
           <div>
             <label for="intent">今の状態</label>
-            <textarea id="intent">作りたいものはまだ決まっていない。予算は5000円。かわいいものがいい。ESP32を持っている。</textarea>
+            <textarea id="intent">作りたいものはまだ決まっていない。予算は5000円。かわいいものがいい。ESP32とLEDと抵抗とブレッドボードがあります。</textarea>
           </div>
 
           <div>
@@ -334,9 +392,9 @@
             <div class="chips" id="entryChips">
               <button class="chip active" data-text="かわいいものを作りたい">かわいい</button>
               <button class="chip" data-text="生活の困りごとを解決したい">困りごと</button>
-              <button class="chip" data-text="予算5000円で作りたい">予算</button>
-              <button class="chip" data-text="ESP32を持っている">持ち物</button>
-              <button class="chip" data-text="水やり通知を作りたい">作品例</button>
+              <button class="chip" data-text="予算5000円で作りたい">予算から</button>
+              <button class="chip" data-text="持っている部品から作りたい">持ち物から</button>
+              <button class="chip" data-text="Lチカの次に進みたい">Lチカの次</button>
             </div>
           </div>
 
@@ -362,6 +420,37 @@
             </div>
           </div>
 
+          <div class="compact">
+            <label for="inventory">持っている部品</label>
+            <textarea id="inventory">ESP32, LED, 220Ω抵抗, ブレッドボード, ジャンパ線, USBケーブル</textarea>
+          </div>
+
+          <div class="form-grid">
+            <div>
+              <label for="stage">今の段階</label>
+              <select id="stage">
+                <option value="orient" selected>まだ選んでいる</option>
+                <option value="parts_check">部品確認中</option>
+                <option value="minimal_circuit">最小回路を組む</option>
+                <option value="firmware_upload">コードを書き込む</option>
+                <option value="observe_serial">ログを見る</option>
+                <option value="debug_triage">動かない</option>
+                <option value="standard_build">標準版へ進む</option>
+                <option value="extension">拡張したい</option>
+              </select>
+            </div>
+            <div>
+              <label for="symptom">症状</label>
+              <select id="symptom">
+                <option value="none" selected>まだない</option>
+                <option value="led_not_lighting">LEDが光らない</option>
+                <option value="upload_failed">書き込めない</option>
+                <option value="sensor_static">センサー値が変わらない</option>
+                <option value="app_stuck_after_checkpoint">checkpoint loadedで止まる</option>
+              </select>
+            </div>
+          </div>
+
           <div class="actions">
             <div class="progress" id="progress">入力して実行できます</div>
             <button class="primary" id="runButton">生成する</button>
@@ -376,13 +465,18 @@
             </div>
           </div>
 
+          <div class="result-block">
+            <h2>自律チュートリアル</h2>
+            <div id="tutorial" class="empty">ニューラル分類で次の一手を出します。</div>
+          </div>
+
           <div class="two-col">
             <div class="result-block">
               <h2>ニューラル分類</h2>
               <div id="neural" class="empty">待機中</div>
             </div>
             <div class="result-block">
-              <h2>予算・部品</h2>
+              <h2>予算と部品</h2>
               <div id="bom" class="empty">待機中</div>
             </div>
           </div>
@@ -390,7 +484,7 @@
           <div class="result-block">
             <h2>生成コード</h2>
             <div id="firmwareMeta" class="empty">待機中</div>
-            <pre id="code">// ここにコードが出ます</pre>
+            <pre id="code">// ここに確認用コードが出ます</pre>
           </div>
 
           <div class="two-col">
@@ -408,8 +502,18 @@
     </main>
 
     <script>
+      const API_BASE = window.API_BASE || localStorage.getItem("DENSHI_API_BASE") || "";
+      const PROJECT_LABELS = {
+        light_charm: "暗くなると光る小さなお守り",
+        desk_pet: "近づくと鳴く机上ペット",
+        plant_ping: "水やり通知",
+        posture_guard: "姿勢注意デバイス",
+        temp_face: "温度で表情が変わるミニキャラ",
+      };
+
       const state = {
         selectedEntry: "かわいいものを作りたい",
+        selectedProject: "desk_pet",
         latest: null,
       };
 
@@ -431,10 +535,16 @@
         const text = document.querySelector("#intent").value.trim();
         const budget = document.querySelector("#budget").value;
         const board = document.querySelector("#board").value;
+        const inventory = document.querySelector("#inventory").value.trim();
+        const currentStage = document.querySelector("#stage").value;
+        const symptom = document.querySelector("#symptom").value;
         return {
           text: `${text} ${state.selectedEntry}`,
+          inventory,
           budget,
           board,
+          currentStage,
+          symptom,
           device: "cuda",
           topK: 3,
         };
@@ -444,7 +554,7 @@
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const response = await fetch(url, {
+          const response = await fetch(`${API_BASE}${url}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body),
@@ -459,16 +569,20 @@
         }
       }
 
-      function renderProjects(discover) {
+      function renderProjects(discover, tutorial) {
         const target = document.querySelector("#projects");
-        const items = discover?.recommendations || [];
+        let items = discover?.recommendations || [];
+        if (!items.length && tutorial?.tutorial?.threeChoices) {
+          items = tutorial.tutorial.threeChoices;
+        }
         if (!items.length) {
           target.innerHTML = `<p class="empty">作品候補を取得できませんでした。</p>`;
           return;
         }
         target.innerHTML = items.slice(0, 3).map((item, index) => {
-          const title = item.title || item.name || item.projectTitle || `候補${index + 1}`;
-          const summary = item.summary || item.description || item.reason || "";
+          const id = item.id || item.projectId || "";
+          const title = PROJECT_LABELS[id] || item.title || item.name || `候補 ${index + 1}`;
+          const summary = item.summary || item.description || item.reason || item.type || "";
           const cost = item.budgetRange || item.costRange || item.estimatedCost || item.budget || "";
           const difficulty = item.difficulty ? `難易度 ${item.difficulty}` : "";
           return `
@@ -484,6 +598,42 @@
         }).join("");
       }
 
+      function renderTutorial(result) {
+        const target = document.querySelector("#tutorial");
+        const tutorial = result?.tutorial;
+        if (!tutorial) {
+          target.textContent = "チュートリアルを生成できませんでした。";
+          return;
+        }
+        target.innerHTML = `
+          <div class="meta">
+            <span class="pill good">${escapeHtml(result.stage?.label || "")}</span>
+            <span class="pill info">${escapeHtml(result.route?.label || "")}</span>
+            <span class="pill">${escapeHtml(result.checkpoint?.label || "")}</span>
+            <span class="pill">自走度 ${percent(result.autonomyScore)}</span>
+          </div>
+          <h3 style="margin-top:12px">${escapeHtml(tutorial.title)}</h3>
+          <p class="subtitle">${escapeHtml(tutorial.teacherNote)}</p>
+          <div class="kv">
+            <div><span>次の一手</span><strong>${escapeHtml(tutorial.nextAction)}</strong></div>
+            <div><span>次の質問</span><strong>${escapeHtml(tutorial.nextQuestion)}</strong></div>
+            <div><span>期待する反応</span><strong>${escapeHtml(tutorial.expectedSignal)}</strong></div>
+          </div>
+          <ul>${(tutorial.checklist || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          <div class="timeline">
+            ${(tutorial.runbook || []).map((step) => `
+              <div class="step">
+                <div class="num">${step.step}</div>
+                <div>
+                  <strong>${escapeHtml(step.title)}</strong>
+                  <p class="subtitle">${escapeHtml(step.goal)}</p>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        `;
+      }
+
       function renderNeural(result) {
         const target = document.querySelector("#neural");
         const fw = result?.firmware;
@@ -493,7 +643,7 @@
         }
         target.innerHTML = `
           <div class="meta">
-            <span class="pill good">${escapeHtml(fw.projectId)}</span>
+            <span class="pill good">${escapeHtml(PROJECT_LABELS[fw.projectId] || fw.projectId)}</span>
             <span class="pill">${escapeHtml(fw.variant?.id || "")}</span>
             <span class="pill">${escapeHtml(fw.board?.label || "")}</span>
             <span class="pill">${escapeHtml(fw.pinProfile?.id || "")}</span>
@@ -585,15 +735,24 @@
         const payload = requestPayload();
         try {
           const discover = await postJson("/api/discover/intent", { ...payload, useTransformer: true }, 50000);
-          renderProjects(discover);
           const selectedProject = discover?.recommendations?.[0]?.id || "desk_pet";
-          const classifiedPayload = {
+          state.selectedProject = selectedProject;
+
+          setProgress("自律チュートリアルを分類中");
+          const tutorial = await postJson("/api/tutorial/next", {
             ...payload,
             projectId: selectedProject,
-            text: `${payload.text} projectId ${selectedProject} boardClass ${payload.board} pinProfile ${pinProfileFor(payload.board)} firmwareVariant ${variantFor(selectedProject)}`,
+          }, 50000);
+          renderProjects(discover, tutorial);
+          renderTutorial(tutorial);
+
+          const classifiedPayload = {
+            ...payload,
+            projectId: tutorial?.project?.id || selectedProject,
+            text: `${payload.text} projectId ${tutorial?.project?.id || selectedProject} boardClass ${payload.board} pinProfile ${pinProfileFor(payload.board)} firmwareVariant ${variantFor(tutorial?.project?.id || selectedProject)}`,
           };
 
-          setProgress("ニューラル分類を実行中");
+          setProgress("コード・安全・デバッグ分類を実行中");
           const neural = await postJson("/api/ai/neural-agents", classifiedPayload, 50000);
           renderNeural(neural);
           renderFirmware(neural);
@@ -603,15 +762,15 @@
           setProgress("部品と予算を推定中");
           const bom = await postJson("/api/ai/bom/estimator", {
             ...payload,
-            projectId: neural?.firmware?.projectId || selectedProject,
-            project: neural?.firmware?.projectId || payload.text,
+            projectId: tutorial?.project?.id || selectedProject,
+            project: tutorial?.project?.title || payload.text,
             selectedOption: neural?.firmware?.variant?.id || "",
           }, 50000);
           renderBom(bom);
 
-          state.latest = { discover, neural, bom };
+          state.latest = { discover, tutorial, neural, bom };
           setStatus("生成完了", true);
-          setProgress("結果を更新しました");
+          setProgress("次の質問に答えると、チュートリアルが先へ進みます");
         } catch (error) {
           setStatus("エラー", false);
           setProgress(error.name === "AbortError" ? "推論がタイムアウトしました" : String(error.message || error));

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1410,8 +1410,12 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(circuit_validator_inference(payload))
         elif route == "/api/ai/inventory-matcher":
             self.send_json(inventory_matcher_inference(payload))
+        elif route == "/api/ai/tutorial-agent":
+            self.send_json(tutorial_agent_inference(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
+        elif route in {"/api/tutorial/start", "/api/tutorial/next", "/api/tutorial/answer"}:
+            self.send_json(tutorial_agent_inference(payload))
         elif route == "/api/discover/from-inventory":
             neural = inventory_matcher_inference(payload)
             self.send_json({"inventoryMatch": neural, "ruleBased": recommend_projects(payload)})
