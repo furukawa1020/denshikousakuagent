@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lチカのつづき | Maker Intent Transformer</title>
+    <title>Lチカのつづき</title>
     <style>
       :root {
         color-scheme: light;
-        --ink: #1e2528;
-        --muted: #687174;
-        --line: #d7dedf;
-        --paper: #f7f5ef;
+        --bg: #f4f1ea;
         --panel: #ffffff;
+        --ink: #172426;
+        --muted: #667174;
+        --line: #d7dddc;
         --accent: #0f766e;
-        --accent-2: #c2410c;
+        --accent-weak: #e2f3f0;
+        --warn: #b45309;
+        --danger: #b91c1c;
+        --code: #142022;
       }
 
       * {
@@ -22,113 +25,59 @@
 
       body {
         margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: var(--paper);
+        background: var(--bg);
         color: var(--ink);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
       main {
-        max-width: 1060px;
+        max-width: 1280px;
         margin: 0 auto;
-        padding: 40px 20px;
+        padding: 24px;
       }
 
       header {
         display: grid;
-        gap: 10px;
-        margin-bottom: 28px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px;
+        align-items: end;
+        margin-bottom: 18px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
       }
 
       h1 {
-        margin: 0;
-        font-size: clamp(28px, 4vw, 48px);
+        font-size: 34px;
         letter-spacing: 0;
       }
 
-      p {
-        margin: 0;
-        color: var(--muted);
-        line-height: 1.7;
-      }
-
-      .workspace {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(320px, 0.9fr);
-        gap: 18px;
-      }
-
-      section {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 18px;
-      }
-
       h2 {
-        margin: 0 0 14px;
         font-size: 18px;
         letter-spacing: 0;
       }
 
-      label {
-        display: block;
-        font-weight: 700;
-        margin-bottom: 8px;
+      h3 {
+        font-size: 15px;
+        letter-spacing: 0;
       }
 
-      textarea,
-      input {
-        width: 100%;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        font: inherit;
-        padding: 12px;
-      }
-
-      textarea {
-        min-height: 150px;
-        resize: vertical;
-      }
-
-      .row {
-        display: grid;
-        grid-template-columns: 1fr 120px;
-        gap: 10px;
-        margin-top: 12px;
-      }
-
-      button {
-        border: 0;
-        border-radius: 8px;
-        padding: 12px 16px;
-        font-weight: 700;
-        color: #fff;
-        background: var(--accent);
-        cursor: pointer;
-      }
-
-      button:disabled {
-        opacity: 0.6;
-        cursor: wait;
-      }
-
-      pre {
-        min-height: 360px;
-        overflow: auto;
-        margin: 0;
-        padding: 14px;
-        border-radius: 8px;
-        background: #172022;
-        color: #d8f3ef;
-        font-size: 13px;
-        line-height: 1.55;
+      .subtitle {
+        margin-top: 6px;
+        color: var(--muted);
+        line-height: 1.6;
       }
 
       .status {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         gap: 8px;
-        margin-top: 12px;
+        min-width: 180px;
+        justify-content: flex-end;
         color: var(--muted);
         font-size: 14px;
       }
@@ -137,20 +86,225 @@
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: var(--accent-2);
+        background: var(--warn);
       }
 
       .dot.ready {
         background: var(--accent);
       }
 
-      @media (max-width: 820px) {
-        .workspace {
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+        gap: 16px;
+      }
+
+      .panel,
+      .result-block,
+      .project-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+      }
+
+      .panel {
+        padding: 16px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 7px;
+        font-weight: 700;
+      }
+
+      textarea,
+      select,
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 11px 12px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 136px;
+        resize: vertical;
+        line-height: 1.55;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+        border-radius: 999px;
+        padding: 8px 11px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+
+      .chip.active {
+        border-color: var(--accent);
+        background: var(--accent-weak);
+        color: #0f4f4a;
+        font-weight: 700;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      button.primary {
+        border: 0;
+        border-radius: 8px;
+        padding: 12px 18px;
+        color: #fff;
+        background: var(--accent);
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      button.primary:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+
+      .progress {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .result-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .result-block {
+        padding: 14px;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .project-card {
+        padding: 13px;
+        display: grid;
+        gap: 8px;
+        min-height: 142px;
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 5px 8px;
+        background: #eef1f1;
+        color: #3d4a4d;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .pill.good {
+        background: var(--accent-weak);
+        color: #0f4f4a;
+      }
+
+      .pill.warn {
+        background: #fff7ed;
+        color: var(--warn);
+      }
+
+      .pill.danger {
+        background: #fee2e2;
+        color: var(--danger);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .kv {
+        display: grid;
+        gap: 7px;
+        margin-top: 10px;
+      }
+
+      .kv div {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid #edf0f0;
+        padding-bottom: 7px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .kv strong {
+        color: var(--ink);
+        text-align: right;
+      }
+
+      pre {
+        margin: 10px 0 0;
+        max-height: 420px;
+        overflow: auto;
+        border-radius: 8px;
+        padding: 13px;
+        background: var(--code);
+        color: #d9f5ee;
+        font-size: 13px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .empty {
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      @media (max-width: 980px) {
+        header,
+        .layout,
+        .two-col,
+        .cards {
           grid-template-columns: 1fr;
         }
 
-        .row {
-          grid-template-columns: 1fr;
+        .status {
+          justify-content: flex-start;
         }
       }
     </style>
@@ -158,78 +312,332 @@
   <body>
     <main>
       <header>
-        <h1>Lチカのつづき</h1>
-        <p>Maker Intent Transformer と Project Graph Transformer の学習済みチェックポイントを使って、曖昧な制作意図から作品候補と作品グラフを生成します。</p>
+        <div>
+          <h1>Lチカのつづき</h1>
+          <p class="subtitle">気分・予算・持ち物から、作れる作品とコードまでつなぎます。</p>
+        </div>
+        <div class="status">
+          <span class="dot" id="dot"></span>
+          <span id="statusText">待機中</span>
+        </div>
       </header>
 
-      <div class="workspace">
-        <section>
-          <h2>Intent</h2>
-          <label for="intent">制作意図</label>
-          <textarea id="intent">作りたいものは分からない。予算は5000円。かわいいものがいい。ESP32は持っている。</textarea>
-          <div class="row">
-            <input id="topK" type="number" min="1" max="5" value="3" aria-label="top k" />
-            <button id="run">推論</button>
+      <div class="layout">
+        <section class="panel stack">
+          <div>
+            <label for="intent">今の状態</label>
+            <textarea id="intent">作りたいものはまだ決まっていない。予算は5000円。かわいいものがいい。ESP32を持っている。</textarea>
           </div>
-          <div class="status">
-            <span class="dot" id="dot"></span>
-            <span id="status">checkpoint 未確認</span>
+
+          <div>
+            <label>入り口</label>
+            <div class="chips" id="entryChips">
+              <button class="chip active" data-text="かわいいものを作りたい">かわいい</button>
+              <button class="chip" data-text="生活の困りごとを解決したい">困りごと</button>
+              <button class="chip" data-text="予算5000円で作りたい">予算</button>
+              <button class="chip" data-text="ESP32を持っている">持ち物</button>
+              <button class="chip" data-text="水やり通知を作りたい">作品例</button>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div>
+              <label for="budget">予算</label>
+              <select id="budget">
+                <option value="1000">1,000円以内</option>
+                <option value="3000">3,000円以内</option>
+                <option value="5000" selected>5,000円以内</option>
+                <option value="10000">10,000円以内</option>
+                <option value="20000">20,000円以内</option>
+              </select>
+            </div>
+            <div>
+              <label for="board">ボード</label>
+              <select id="board">
+                <option value="esp32" selected>ESP32</option>
+                <option value="arduino_uno">Arduino Uno</option>
+                <option value="m5stack">M5Stack</option>
+                <option value="pico">Raspberry Pi Pico</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <div class="progress" id="progress">入力して実行できます</div>
+            <button class="primary" id="runButton">生成する</button>
           </div>
         </section>
 
-        <section>
-          <h2>Transformer Output</h2>
-          <pre id="output">{}</pre>
+        <section class="result-grid">
+          <div class="result-block">
+            <h2>おすすめ作品</h2>
+            <div id="projects" class="cards">
+              <p class="empty">まだ生成していません。</p>
+            </div>
+          </div>
+
+          <div class="two-col">
+            <div class="result-block">
+              <h2>ニューラル分類</h2>
+              <div id="neural" class="empty">待機中</div>
+            </div>
+            <div class="result-block">
+              <h2>予算・部品</h2>
+              <div id="bom" class="empty">待機中</div>
+            </div>
+          </div>
+
+          <div class="result-block">
+            <h2>生成コード</h2>
+            <div id="firmwareMeta" class="empty">待機中</div>
+            <pre id="code">// ここにコードが出ます</pre>
+          </div>
+
+          <div class="two-col">
+            <div class="result-block">
+              <h2>デバッグ判断</h2>
+              <div id="debug" class="empty">待機中</div>
+            </div>
+            <div class="result-block">
+              <h2>安全判断</h2>
+              <div id="safety" class="empty">待機中</div>
+            </div>
+          </div>
         </section>
       </div>
     </main>
 
     <script>
-      const button = document.querySelector("#run");
-      const output = document.querySelector("#output");
-      const statusText = document.querySelector("#status");
+      const state = {
+        selectedEntry: "かわいいものを作りたい",
+        latest: null,
+      };
+
+      const statusText = document.querySelector("#statusText");
+      const progress = document.querySelector("#progress");
+      const runButton = document.querySelector("#runButton");
       const dot = document.querySelector("#dot");
 
-      async function postJson(url, body) {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        return response.json();
+      function setStatus(text, ready = false) {
+        statusText.textContent = text;
+        dot.classList.toggle("ready", ready);
       }
 
-      async function runInference() {
-        button.disabled = true;
-        statusText.textContent = "推論中";
+      function setProgress(text) {
+        progress.textContent = text;
+      }
+
+      function requestPayload() {
+        const text = document.querySelector("#intent").value.trim();
+        const budget = document.querySelector("#budget").value;
+        const board = document.querySelector("#board").value;
+        return {
+          text: `${text} ${state.selectedEntry}`,
+          budget,
+          board,
+          device: "cuda",
+          topK: 3,
+        };
+      }
+
+      async function postJson(url, body, timeoutMs = 45000) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
         try {
-          const request = {
-            text: document.querySelector("#intent").value,
-            topK: Number(document.querySelector("#topK").value || 3),
-          };
-          const [intent, projectGraph, bom, skillrec, wirecheck, neuralAgents] = await Promise.all([
-            postJson("/api/ai/intent/transformer", request),
-            postJson("/api/ai/project-graph/transformer", request),
-            postJson("/api/ai/bom/estimator", request),
-            postJson("/api/ai/skillrec", {}),
-            postJson("/api/ai/wirechecknet", { synthetic: true }),
-            postJson("/api/ai/neural-agents", request),
-          ]);
-          const data = { intent, projectGraph, bom, skillrec, wirecheck, neuralAgents };
-          output.textContent = JSON.stringify(data, null, 2);
-          dot.classList.toggle("ready", Boolean(intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available || neuralAgents.available));
-          statusText.textContent = intent.available || projectGraph.available || bom.available || skillrec.available || wirecheck.available || neuralAgents.available ? "checkpoint loaded" : "checkpoint not loaded";
-        } catch (error) {
-          output.textContent = String(error);
-          dot.classList.remove("ready");
-          statusText.textContent = "request failed";
+          const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            throw new Error(`${url} ${response.status}`);
+          }
+          return await response.json();
         } finally {
-          button.disabled = false;
+          clearTimeout(timeout);
         }
       }
 
-      button.addEventListener("click", runInference);
-      runInference();
+      function renderProjects(discover) {
+        const target = document.querySelector("#projects");
+        const items = discover?.recommendations || [];
+        if (!items.length) {
+          target.innerHTML = `<p class="empty">作品候補を取得できませんでした。</p>`;
+          return;
+        }
+        target.innerHTML = items.slice(0, 3).map((item, index) => {
+          const title = item.title || item.name || item.projectTitle || `候補${index + 1}`;
+          const summary = item.summary || item.description || item.reason || "";
+          const cost = item.costRange || item.estimatedCost || item.budget || "";
+          const difficulty = item.difficulty ? `難易度 ${item.difficulty}` : "";
+          return `
+            <article class="project-card">
+              <h3>${escapeHtml(title)}</h3>
+              <p class="subtitle">${escapeHtml(summary)}</p>
+              <div class="meta">
+                ${cost ? `<span class="pill good">${escapeHtml(String(cost))}</span>` : ""}
+                ${difficulty ? `<span class="pill">${escapeHtml(String(difficulty))}</span>` : ""}
+              </div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function renderNeural(result) {
+        const target = document.querySelector("#neural");
+        const fw = result?.firmware;
+        if (!fw) {
+          target.textContent = "分類結果なし";
+          return;
+        }
+        target.innerHTML = `
+          <div class="meta">
+            <span class="pill good">${escapeHtml(fw.projectId)}</span>
+            <span class="pill">${escapeHtml(fw.variant?.id || "")}</span>
+            <span class="pill">${escapeHtml(fw.board?.label || "")}</span>
+            <span class="pill">${escapeHtml(fw.pinProfile?.id || "")}</span>
+          </div>
+          <div class="kv">
+            <div><span>project confidence</span><strong>${percent(fw.confidence)}</strong></div>
+            <div><span>variant confidence</span><strong>${percent(fw.variant?.confidence)}</strong></div>
+            <div><span>board confidence</span><strong>${percent(fw.board?.confidence)}</strong></div>
+          </div>
+        `;
+      }
+
+      function renderBom(result) {
+        const target = document.querySelector("#bom");
+        if (!result?.available) {
+          target.textContent = "BOM推定なし";
+          return;
+        }
+        const components = (result.components || []).slice(0, 5);
+        target.innerHTML = `
+          <div class="meta">
+            <span class="pill good">${escapeHtml(result.estimatedCost?.range || "")}</span>
+            <span class="pill">${escapeHtml(result.risk || "")}</span>
+          </div>
+          <div class="kv">
+            ${components.map((item) => `<div><span>${escapeHtml(item.name)}</span><strong>${escapeHtml(item.priceRange || "")}</strong></div>`).join("")}
+          </div>
+        `;
+      }
+
+      function renderFirmware(result) {
+        const meta = document.querySelector("#firmwareMeta");
+        const code = document.querySelector("#code");
+        const fw = result?.firmware || result;
+        if (!fw?.code) {
+          meta.textContent = "コードなし";
+          code.textContent = "// 生成できませんでした";
+          return;
+        }
+        meta.innerHTML = `
+          <div class="meta">
+            <span class="pill good">${escapeHtml(fw.language || "Arduino C++")}</span>
+            <span class="pill">${escapeHtml(fw.generationMode || "")}</span>
+            ${fw.staticChecks?.hasSerialDebug ? `<span class="pill good">Serial OK</span>` : `<span class="pill warn">Serial未確認</span>`}
+          </div>
+        `;
+        code.textContent = fw.code;
+      }
+
+      function renderDebug(result) {
+        const target = document.querySelector("#debug");
+        const debug = result?.debug || result;
+        const top = debug?.causeRanking?.[0];
+        if (!top) {
+          target.textContent = "診断なし";
+          return;
+        }
+        target.innerHTML = `
+          <div class="meta">
+            <span class="pill warn">${escapeHtml(top.cause)}</span>
+            <span class="pill">${percent(top.score)}</span>
+          </div>
+          <p class="subtitle">${escapeHtml(top.label || "")}</p>
+          <div class="kv">
+            <div><span>次の確認</span><strong>${escapeHtml(debug.nextQuestion || "")}</strong></div>
+            <div><span>skill</span><strong>${escapeHtml(debug.skillUpdateHint || "")}</strong></div>
+          </div>
+        `;
+      }
+
+      function renderSafety(result) {
+        const target = document.querySelector("#safety");
+        const safety = result?.safety || result;
+        const risk = safety?.risk || "unknown";
+        const pillClass = risk === "blocked" ? "danger" : risk === "high" || risk === "medium" ? "warn" : "good";
+        const labels = safety?.labels || [];
+        target.innerHTML = `
+          <div class="meta">
+            <span class="pill ${pillClass}">${escapeHtml(risk)}</span>
+            ${labels.slice(0, 3).map((item) => `<span class="pill">${escapeHtml(item.label)} ${percent(item.score)}</span>`).join("")}
+          </div>
+        `;
+      }
+
+      async function run() {
+        runButton.disabled = true;
+        setStatus("推論中", false);
+        setProgress("作品候補を生成中");
+        const payload = requestPayload();
+        try {
+          const discover = await postJson("/api/discover/intent", { ...payload, useTransformer: true }, 50000);
+          renderProjects(discover);
+
+          setProgress("ニューラル分類を実行中");
+          const neural = await postJson("/api/ai/neural-agents", payload, 50000);
+          renderNeural(neural);
+          renderFirmware(neural);
+          renderDebug(neural);
+          renderSafety(neural);
+
+          setProgress("部品と予算を推定中");
+          const bom = await postJson("/api/ai/bom/estimator", {
+            ...payload,
+            project: neural?.firmware?.projectId || payload.text,
+            selectedOption: neural?.firmware?.variant?.id || "",
+          }, 50000);
+          renderBom(bom);
+
+          state.latest = { discover, neural, bom };
+          setStatus("生成完了", true);
+          setProgress("結果を更新しました");
+        } catch (error) {
+          setStatus("エラー", false);
+          setProgress(error.name === "AbortError" ? "推論がタイムアウトしました" : String(error.message || error));
+        } finally {
+          runButton.disabled = false;
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function percent(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return "";
+        return `${Math.round(number * 100)}%`;
+      }
+
+      document.querySelector("#entryChips").addEventListener("click", (event) => {
+        const button = event.target.closest(".chip");
+        if (!button) return;
+        document.querySelectorAll(".chip").forEach((chip) => chip.classList.remove("active"));
+        button.classList.add("active");
+        state.selectedEntry = button.dataset.text || "";
+      });
+
+      runButton.addEventListener("click", run);
+      run();
     </script>
   </body>
 </html>
