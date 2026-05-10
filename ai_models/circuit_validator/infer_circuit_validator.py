@@ -49,15 +49,21 @@ class CircuitValidatorInference:
         risk_probs = outputs["risk_logits"][0].softmax(dim=-1).detach().cpu()
         repair_probs = outputs["repair_logits"][0].softmax(dim=-1).detach().cpu()
         board_probs = outputs["board_logits"][0].softmax(dim=-1).detach().cpu()
-        issues = [
+        issue_items = [
             {"issue": CIRCUIT_ISSUES[index], "score": round(float(issue_probs[index]), 4)}
             for index in issue_probs.argsort(descending=True).tolist()
             if float(issue_probs[index]) >= 0.35
         ][:5]
-        if not issues:
-            issues = [{"issue": CIRCUIT_ISSUES[int(issue_probs.argmax())], "score": round(float(issue_probs.max()), 4)}]
-        risk_index = int(risk_probs.argmax())
-        repair_index = int(repair_probs.argmax())
+        has_actionable_issue = any(item["issue"] != "ok" for item in issue_items)
+        if not has_actionable_issue:
+            ok_score = float(issue_probs[CIRCUIT_ISSUES.index("ok")])
+            issues = [{"issue": "ok", "score": round(max(ok_score, 1.0 - float(issue_probs.max())), 4)}]
+            risk_index = RISK_CLASSES.index("low")
+            repair_index = REPAIR_ACTIONS.index("none")
+        else:
+            issues = [item for item in issue_items if item["issue"] != "ok"]
+            risk_index = int(risk_probs.argmax())
+            repair_index = int(repair_probs.argmax())
         board_index = int(board_probs.argmax())
         return {
             "available": True,
@@ -87,4 +93,3 @@ def build_input_text(payload: dict[str, Any]) -> str:
 
 if __name__ == "__main__":
     main()
-
