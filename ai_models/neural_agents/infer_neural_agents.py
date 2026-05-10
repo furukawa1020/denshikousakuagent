@@ -10,7 +10,19 @@ import torch
 from ai_models.makergraph.tokenizer import MakerTokenizer
 
 from .model import load_checkpoint
-from .taxonomy import DEBUG_CAUSES, DEBUG_LABELS, FIRMWARE_CLASSES, PROJECT_LABELS, RISK_CLASSES, SAFETY_LABELS
+from .taxonomy import (
+    BOARD_CLASSES,
+    BOARD_LABELS,
+    DEBUG_CAUSES,
+    DEBUG_LABELS,
+    FIRMWARE_CLASSES,
+    FIRMWARE_VARIANTS,
+    PIN_PROFILES,
+    PIN_PROFILE_VALUES,
+    PROJECT_LABELS,
+    RISK_CLASSES,
+    SAFETY_LABELS,
+)
 
 
 CODEBOOK = {
@@ -169,10 +181,20 @@ class NeuralAgentInference:
         risk_probs = outputs["risk_logits"][0].softmax(dim=-1).detach().cpu()
         debug_probs = outputs["debug_logits"][0].softmax(dim=-1).detach().cpu()
         firmware_probs = outputs["firmware_logits"][0].softmax(dim=-1).detach().cpu()
+        firmware_variant_probs = outputs["firmware_variant_logits"][0].softmax(dim=-1).detach().cpu()
+        board_probs = outputs["board_logits"][0].softmax(dim=-1).detach().cpu()
+        pin_profile_probs = outputs["pin_profile_logits"][0].softmax(dim=-1).detach().cpu()
 
         risk_index = calibrated_risk_index(safety_probs, risk_probs)
         firmware_index = int(firmware_probs.argmax())
         firmware_id = FIRMWARE_CLASSES[firmware_index]
+        firmware_variant_index = int(firmware_variant_probs.argmax())
+        firmware_variant_id = FIRMWARE_VARIANTS[firmware_variant_index]
+        board_index = int(board_probs.argmax())
+        board_id = BOARD_CLASSES[board_index]
+        pin_profile_index = int(pin_profile_probs.argmax())
+        pin_profile_id = PIN_PROFILES[pin_profile_index]
+        code = render_firmware_code(firmware_id, firmware_variant_id, board_id, pin_profile_id)
         debug_ranked = debug_probs.argsort(descending=True).tolist()
         safety_ranked = safety_probs.argsort(descending=True).tolist()
         active_safety = [
@@ -209,9 +231,27 @@ class NeuralAgentInference:
                 "title": PROJECT_LABELS[firmware_id],
                 "confidence": round(float(firmware_probs[firmware_index]), 4),
                 "classDistribution": {FIRMWARE_CLASSES[index]: round(float(value), 4) for index, value in enumerate(firmware_probs.tolist())},
+                "variant": {
+                    "id": firmware_variant_id,
+                    "confidence": round(float(firmware_variant_probs[firmware_variant_index]), 4),
+                    "distribution": {FIRMWARE_VARIANTS[index]: round(float(value), 4) for index, value in enumerate(firmware_variant_probs.tolist())},
+                },
+                "board": {
+                    "id": board_id,
+                    "label": BOARD_LABELS[board_id],
+                    "confidence": round(float(board_probs[board_index]), 4),
+                    "distribution": {BOARD_CLASSES[index]: round(float(value), 4) for index, value in enumerate(board_probs.tolist())},
+                },
+                "pinProfile": {
+                    "id": pin_profile_id,
+                    "pins": PIN_PROFILE_VALUES[pin_profile_id],
+                    "confidence": round(float(pin_profile_probs[pin_profile_index]), 4),
+                    "distribution": {PIN_PROFILES[index]: round(float(value), 4) for index, value in enumerate(pin_profile_probs.tolist())},
+                },
                 "language": "Arduino C++",
-                "code": CODEBOOK[firmware_id],
-                "generationMode": "neural_classification_codebook",
+                "code": code,
+                "generationMode": "neural_multiclass_codebook",
+                "staticChecks": static_checks(code),
             },
         }
 

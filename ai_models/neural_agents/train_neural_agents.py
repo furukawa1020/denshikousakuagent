@@ -14,7 +14,7 @@ from .config import NeuralAgentConfig
 from .data import NeuralAgentDataset, collect_texts, collate_agent_batch, generate_records, load_jsonl, write_jsonl
 from .losses import accuracy, multilabel_f1, neural_agent_loss
 from .model import NeuralAgentTransformer, count_parameters
-from .taxonomy import DEBUG_CAUSES, FIRMWARE_CLASSES, RISK_CLASSES, SAFETY_LABELS
+from .taxonomy import BOARD_CLASSES, DEBUG_CAUSES, FIRMWARE_CLASSES, FIRMWARE_VARIANTS, PIN_PROFILES, RISK_CLASSES, SAFETY_LABELS
 
 
 def parse_args() -> argparse.Namespace:
@@ -51,6 +51,9 @@ def main() -> None:
         debug_count=len(DEBUG_CAUSES),
         risk_count=len(RISK_CLASSES),
         firmware_count=len(FIRMWARE_CLASSES),
+        firmware_variant_count=len(FIRMWARE_VARIANTS),
+        board_count=len(BOARD_CLASSES),
+        pin_profile_count=len(PIN_PROFILES),
         max_length=args.max_length,
         d_model=args.d_model,
         n_heads=args.n_heads,
@@ -75,6 +78,9 @@ def main() -> None:
         "risk": RISK_CLASSES,
         "debug": DEBUG_CAUSES,
         "firmware": FIRMWARE_CLASSES,
+        "firmwareVariant": FIRMWARE_VARIANTS,
+        "board": BOARD_CLASSES,
+        "pinProfile": PIN_PROFILES,
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({
         "device": str(device),
@@ -110,7 +116,16 @@ def run_epoch(
     amp: bool,
 ) -> dict[str, float]:
     model.train(train)
-    total = {"loss": 0.0, "safety_f1": 0.0, "risk_acc": 0.0, "debug_acc": 0.0, "firmware_acc": 0.0}
+    total = {
+        "loss": 0.0,
+        "safety_f1": 0.0,
+        "risk_acc": 0.0,
+        "debug_acc": 0.0,
+        "firmware_acc": 0.0,
+        "firmware_variant_acc": 0.0,
+        "board_acc": 0.0,
+        "pin_profile_acc": 0.0,
+    }
     steps = 0
     for batch in loader:
         batch = move_batch(batch, device)
@@ -130,6 +145,9 @@ def run_epoch(
         total["risk_acc"] += accuracy(outputs["risk_logits"].detach(), batch["risk_class"])
         total["debug_acc"] += accuracy(outputs["debug_logits"].detach(), batch["debug_class"])
         total["firmware_acc"] += accuracy(outputs["firmware_logits"].detach(), batch["firmware_class"])
+        total["firmware_variant_acc"] += accuracy(outputs["firmware_variant_logits"].detach(), batch["firmware_variant_class"])
+        total["board_acc"] += accuracy(outputs["board_logits"].detach(), batch["board_class"])
+        total["pin_profile_acc"] += accuracy(outputs["pin_profile_logits"].detach(), batch["pin_profile_class"])
         steps += 1
     return {key: value / max(1, steps) for key, value in total.items()}
 
@@ -165,4 +183,3 @@ def prefix(name: str, metrics: dict[str, float]) -> dict[str, float]:
 
 if __name__ == "__main__":
     main()
-
