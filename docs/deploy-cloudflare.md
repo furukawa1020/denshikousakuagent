@@ -44,3 +44,9 @@ Invoke-RestMethod https://YOUR_WORKER_DOMAIN/api/health
 ```
 
 `gpuApiConfigured: true` が返れば、Worker側の中継設定は入っています。
+
+ローカルGPU APIの確認だけなら、次を使います。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\smoke_gpu_api.ps1
+```
