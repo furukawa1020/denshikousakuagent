@@ -10,7 +10,7 @@ from torch.utils.data import Dataset
 
 from ai_models.makergraph.tokenizer import MakerTokenizer
 
-from .taxonomy import DEBUG_CAUSES, FIRMWARE_CLASSES, PROJECTS, SAFETY_LABELS, index_or_default
+from .taxonomy import BOARD_CLASSES, FIRMWARE_CLASSES, FIRMWARE_VARIANTS, PIN_PROFILES, PROJECTS, SAFETY_LABELS, DEBUG_CAUSES, index_or_default
 
 
 PROJECT_DESCRIPTORS = {
@@ -99,9 +99,12 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
     rng = random.Random(seed)
     records: list[dict[str, Any]] = []
     debug_causes = DEBUG_CAUSES
-    safety_labels = SAFETY_LABELS
+            safety_labels = SAFETY_LABELS
     for project in PROJECTS:
         for _ in range(records_per_project):
+            board_label = rng.choice(BOARD_CLASSES)
+            pin_profile = choose_pin_profile(board_label, rng)
+            firmware_variant = choose_firmware_variant(project, rng)
             debug = rng.choice(debug_causes)
             base = rng.choice(PROJECT_DESCRIPTORS[project])
             debug_text = rng.choice(DEBUG_PATTERNS[debug])
@@ -112,8 +115,18 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
                 safety = choose_safety(rng)
                 safety_text = " ".join(SAFETY_PATTERNS[label][0] for label in safety)
             budget = rng.choice(["budget 1000 yen", "budget 3000 yen", "budget 5000 yen", "budget 10000 yen"])
-            board = rng.choice(["arduino uno", "esp32", "m5stack", "raspberry pi pico"])
-            text = " | ".join([f"projectId {project}", base, board, budget, debug_text, safety_text])
+            board = board_label.replace("_", " ")
+            text = " | ".join([
+                f"projectId {project}",
+                f"firmwareVariant {firmware_variant}",
+                f"boardClass {board_label}",
+                f"pinProfile {pin_profile}",
+                base,
+                board,
+                budget,
+                debug_text,
+                safety_text,
+            ])
             records.append({
                 "text": text,
                 "project": project,
@@ -121,10 +134,21 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
                 "safety": safety,
                 "risk": risk_from_safety(safety),
                 "firmware": project,
+                "firmware_variant": firmware_variant,
+                "board": board_label,
+                "pin_profile": pin_profile,
             })
         for _ in range(max(80, records_per_project // 5)):
             descriptor = rng.choice(PROJECT_DESCRIPTORS[project])
-            for text in [f"projectId {project}", f"projectId: {project}", f"projectId {project} | {descriptor}"]:
+            board_label = default_board(project)
+            pin_profile = choose_pin_profile(board_label, rng)
+            firmware_variant = choose_firmware_variant(project, rng)
+            for text in [
+                f"projectId {project}",
+                f"projectId: {project}",
+                f"projectId {project} | {descriptor}",
+                f"projectId {project} | firmwareVariant {firmware_variant} | boardClass {board_label} | pinProfile {pin_profile}",
+            ]:
                 records.append({
                     "text": text,
                     "project": project,
@@ -132,6 +156,9 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
                     "safety": ["ok_low_voltage"],
                     "risk": "low",
                     "firmware": project,
+                    "firmware_variant": firmware_variant,
+                    "board": board_label,
+                    "pin_profile": pin_profile,
                 })
         hazard_labels = [
             "missing_resistor_led",
@@ -148,10 +175,13 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
             for _ in range(max(20, records_per_project // 16)):
                 descriptor = rng.choice(PROJECT_DESCRIPTORS[project])
                 hazard = SAFETY_PATTERNS[label][0]
+                board_label = default_board(project)
+                pin_profile = choose_pin_profile(board_label, rng)
+                firmware_variant = choose_firmware_variant(project, rng)
                 text_options = [
                     hazard,
                     f"projectId {project} | {hazard}",
-                    f"projectId {project} | {descriptor} | {hazard}",
+                    f"projectId {project} | {descriptor} | firmwareVariant {firmware_variant} | boardClass {board_label} | pinProfile {pin_profile} | {hazard}",
                 ]
                 for text in text_options:
                     records.append({
@@ -161,12 +191,22 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
                         "safety": [label],
                         "risk": risk_from_safety([label]),
                         "firmware": project,
+                        "firmware_variant": firmware_variant,
+                        "board": board_label,
+                        "pin_profile": pin_profile,
                     })
         for debug_label in [label for label in debug_causes if label != "unknown"]:
             for _ in range(max(20, records_per_project // 20)):
                 descriptor = rng.choice(PROJECT_DESCRIPTORS[project])
                 symptom = rng.choice(DEBUG_PATTERNS[debug_label])
-                for text in [symptom, f"projectId {project} | {symptom}", f"projectId {project} | {descriptor} | {symptom}"]:
+                board_label = default_board(project)
+                pin_profile = choose_pin_profile(board_label, rng)
+                firmware_variant = choose_firmware_variant(project, rng)
+                for text in [
+                    symptom,
+                    f"projectId {project} | {symptom}",
+                    f"projectId {project} | {descriptor} | firmwareVariant {firmware_variant} | boardClass {board_label} | pinProfile {pin_profile} | {symptom}",
+                ]:
                     records.append({
                         "text": text,
                         "project": project,
@@ -174,6 +214,9 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
                         "safety": ["ok_low_voltage"],
                         "risk": "low",
                         "firmware": project,
+                        "firmware_variant": firmware_variant,
+                        "board": board_label,
+                        "pin_profile": pin_profile,
                     })
     rng.shuffle(records)
     return records
@@ -203,6 +246,37 @@ def risk_from_safety(labels: list[str]) -> str:
     return "low"
 
 
+def choose_firmware_variant(project: str, rng: random.Random) -> str:
+    variants = {
+        "light_charm": ["light_charm_minimal", "light_charm_debug"],
+        "desk_pet": ["desk_pet_led", "desk_pet_buzzer"],
+        "plant_ping": ["plant_ping_led", "plant_ping_buzzer"],
+        "posture_guard": ["posture_guard_led", "posture_guard_buzzer"],
+        "temp_face": ["temp_face_serial", "temp_face_i2c_ready"],
+    }
+    return rng.choice(variants[project])
+
+
+def default_board(project: str) -> str:
+    if project in {"desk_pet", "posture_guard"}:
+        return "esp32"
+    if project == "temp_face":
+        return "m5stack"
+    if project == "light_charm":
+        return "arduino_uno"
+    return "esp32"
+
+
+def choose_pin_profile(board: str, rng: random.Random) -> str:
+    options = {
+        "arduino_uno": ["arduino_default"],
+        "esp32": ["esp32_default", "esp32_grove_safe"],
+        "m5stack": ["m5stack_grove", "esp32_grove_safe"],
+        "pico": ["pico_default"],
+    }
+    return rng.choice(options[board])
+
+
 def collect_texts(records: list[dict[str, Any]]) -> list[str]:
     return [str(record["text"]) for record in records]
 
@@ -229,6 +303,9 @@ class NeuralAgentDataset(Dataset):
             "risk_class": torch.tensor(risk_index(record["risk"]), dtype=torch.long),
             "debug_class": torch.tensor(index_or_default(DEBUG_CAUSES, record["debug"], "unknown"), dtype=torch.long),
             "firmware_class": torch.tensor(index_or_default(FIRMWARE_CLASSES, record["firmware"], "light_charm"), dtype=torch.long),
+            "firmware_variant_class": torch.tensor(index_or_default(FIRMWARE_VARIANTS, record["firmware_variant"], "light_charm_minimal"), dtype=torch.long),
+            "board_class": torch.tensor(index_or_default(BOARD_CLASSES, record["board"], "esp32"), dtype=torch.long),
+            "pin_profile_class": torch.tensor(index_or_default(PIN_PROFILES, record["pin_profile"], "esp32_default"), dtype=torch.long),
         }
 
 
