@@ -326,5 +326,164 @@ def skill_hint(cause: str) -> str:
     return hints.get(cause, "debugging")
 
 
+def render_firmware_code(project_id: str, variant_id: str, board_id: str, pin_profile_id: str) -> str:
+    pins = PIN_PROFILE_VALUES[pin_profile_id]
+    led = pins["led"]
+    buzzer = pins["buzzer"]
+    digital = pins["digital"]
+    analog = pins["analog"]
+    board_label = BOARD_LABELS[board_id]
+    if project_id == "light_charm":
+        return f"""// Neural classification firmware: dark-reactive LED charm
+// Board: {board_label}
+const int LED_PIN = {led};
+const int LIGHT_PIN = {analog};
+const int DARK_THRESHOLD = 450;
+
+void setup() {{
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+}}
+
+void loop() {{
+  int lightValue = analogRead(LIGHT_PIN);
+  bool isDark = lightValue < DARK_THRESHOLD;
+  digitalWrite(LED_PIN, isDark ? HIGH : LOW);
+  Serial.print("light=");
+  Serial.print(lightValue);
+  Serial.print(" dark=");
+  Serial.println(isDark ? "yes" : "no");
+  delay(200);
+}}
+"""
+    if project_id == "plant_ping":
+        buzzer_block = ""
+        if variant_id == "plant_ping_buzzer":
+            buzzer_block = f"""
+  if (isDry) {{
+    tone(BUZZER_PIN, 988, 70);
+  }}
+"""
+        return f"""// Neural classification firmware: plant watering notifier
+// Board: {board_label}
+const int LED_PIN = {led};
+const int BUZZER_PIN = {buzzer};
+const int SOIL_PIN = {analog};
+const int DRY_THRESHOLD = 420;
+
+void setup() {{
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+}}
+
+void loop() {{
+  int soilValue = analogRead(SOIL_PIN);
+  bool isDry = soilValue < DRY_THRESHOLD;
+  digitalWrite(LED_PIN, isDry ? HIGH : LOW);{buzzer_block}
+  Serial.print("soil=");
+  Serial.print(soilValue);
+  Serial.print(" dry=");
+  Serial.println(isDry ? "yes" : "no");
+  delay(500);
+}}
+"""
+    if project_id == "desk_pet":
+        buzzer_block = ""
+        if variant_id == "desk_pet_buzzer":
+            buzzer_block = f"""
+  if (isNear) {{
+    tone(BUZZER_PIN, 880, 80);
+  }}
+"""
+        return f"""// Neural classification firmware: proximity desk pet
+// Board: {board_label}
+const int LED_PIN = {led};
+const int BUZZER_PIN = {buzzer};
+const int DISTANCE_PIN = {digital};
+
+void setup() {{
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(DISTANCE_PIN, INPUT);
+}}
+
+void loop() {{
+  int nearSignal = digitalRead(DISTANCE_PIN);
+  bool isNear = nearSignal == HIGH;
+  digitalWrite(LED_PIN, isNear ? HIGH : LOW);{buzzer_block}
+  Serial.print("near=");
+  Serial.println(isNear ? "yes" : "no");
+  delay(150);
+}}
+"""
+    if project_id == "posture_guard":
+        buzzer_block = ""
+        if variant_id == "posture_guard_buzzer":
+            buzzer_block = f"""
+  if (tooClose) {{
+    tone(BUZZER_PIN, 1200, 60);
+  }}
+"""
+        return f"""// Neural classification firmware: posture alert device
+// Board: {board_label}
+const int LED_PIN = {led};
+const int BUZZER_PIN = {buzzer};
+const int DISTANCE_PIN = {digital};
+
+void setup() {{
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(DISTANCE_PIN, INPUT);
+}}
+
+void loop() {{
+  int tooCloseSignal = digitalRead(DISTANCE_PIN);
+  bool tooClose = tooCloseSignal == HIGH;
+  digitalWrite(LED_PIN, tooClose ? HIGH : LOW);{buzzer_block}
+  Serial.print("tooClose=");
+  Serial.println(tooClose ? "yes" : "no");
+  delay(200);
+}}
+"""
+    wire_include = "#include <Wire.h>\n\n" if variant_id == "temp_face_i2c_ready" else ""
+    return f"""// Neural classification firmware: temperature face display
+// Board: {board_label}
+{wire_include}const int TEMP_PIN = {analog};
+const int HOT_THRESHOLD = 640;
+
+void setup() {{
+  Serial.begin(115200);
+}}
+
+void loop() {{
+  int tempRaw = analogRead(TEMP_PIN);
+  Serial.print("tempRaw=");
+  Serial.print(tempRaw);
+  Serial.print(" face=");
+  if (tempRaw > HOT_THRESHOLD) {{
+    Serial.println("hot");
+  }} else if (tempRaw < HOT_THRESHOLD - 180) {{
+    Serial.println("cold");
+  }} else {{
+    Serial.println("comfortable");
+  }}
+  delay(500);
+}}
+"""
+
+
+def static_checks(code: str) -> dict[str, Any]:
+    return {
+        "hasSetup": "void setup()" in code,
+        "hasLoop": "void loop()" in code,
+        "hasSerialDebug": "Serial." in code or "Serial.begin" in code,
+        "mentionsDangerousMains": "AC100V" in code or "relay" in code.lower(),
+        "length": len(code),
+    }
+
+
 if __name__ == "__main__":
     main()
