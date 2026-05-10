@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1406,6 +1406,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(skillrec_inference(payload))
         elif route == "/api/ai/neural-agents":
             self.send_json(neural_agent_inference(payload))
+        elif route == "/api/ai/circuit-validator":
+            self.send_json(circuit_validator_inference(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route == "/api/bom/estimate":
@@ -1415,11 +1417,11 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
         elif route == "/api/circuits/validate":
             project = get_project(payload.get("projectId"))
             circuit = generate_circuit(project)
-            result = neural_agent_inference({**payload, "projectId": project.id, "circuitGraph": circuit})
+            result = circuit_validator_inference({**payload, "projectId": project.id, "circuitGraph": circuit})
             if not result.get("available"):
                 self.send_json(result)
             else:
-                self.send_json({"available": True, "model": result.get("model"), "circuitId": circuit["id"], **result.get("safety", {})})
+                self.send_json({"circuitId": circuit["id"], **result})
         elif route == "/api/safety/validate":
             result = neural_agent_inference(payload)
             if not result.get("available"):
