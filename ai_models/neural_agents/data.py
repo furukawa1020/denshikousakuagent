@@ -99,7 +99,6 @@ def generate_records(records_per_project: int = 1000, seed: int = 47) -> list[di
     rng = random.Random(seed)
     records: list[dict[str, Any]] = []
     debug_causes = DEBUG_CAUSES
-            safety_labels = SAFETY_LABELS
     for project in PROJECTS:
         for _ in range(records_per_project):
             board_label = rng.choice(BOARD_CLASSES)
