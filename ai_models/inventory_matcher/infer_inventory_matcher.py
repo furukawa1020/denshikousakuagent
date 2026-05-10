@@ -112,8 +112,26 @@ def detect_owned_components(payload: dict[str, Any]) -> list[str]:
     values = [str(payload.get(key) or "") for key in ["inventory", "text", "owned", "components"]]
     raw = " ".join(values).lower()
     owned = []
+    explicit_aliases = {
+        "esp32_devkit": ["esp32", "esp32 devkit"],
+        "arduino_uno": ["arduino", "arduino uno"],
+        "m5stickc": ["m5stickc", "m5stack", "m5stickc plus2"],
+        "led_5mm": ["led", "5mm led"],
+        "resistor_220": ["resistor", "220", "220ohm", "220 ohm", "220Ω"],
+        "breadboard": ["breadboard"],
+        "jumper_wires": ["jumper", "jumper wire", "jumper wires"],
+        "usb_cable": ["usb", "usb cable"],
+        "light_sensor": ["light sensor", "photoresistor", "cds"],
+        "distance_sensor": ["distance sensor", "ultrasonic", "hc-sr04", "tof"],
+        "buzzer": ["buzzer", "piezo"],
+        "servo_sg90": ["servo", "sg90"],
+        "dht_sensor": ["dht", "temperature sensor", "humidity sensor"],
+        "oled_display": ["oled", "display"],
+        "soil_sensor": ["soil", "soil sensor", "moisture sensor"],
+        "case_material": ["case", "box", "enclosure"],
+    }
     for component_id, component in COMPONENT_BY_ID.items():
-        probes = [component_id, component.name, *component.aliases]
+        probes = [component_id, component.name, *component.aliases, *explicit_aliases.get(component_id, [])]
         if any(str(probe).lower() in raw for probe in probes):
             owned.append(component_id)
     return owned
@@ -138,4 +156,3 @@ def detect_interest(payload: dict[str, Any]) -> str:
 
 if __name__ == "__main__":
     main()
-

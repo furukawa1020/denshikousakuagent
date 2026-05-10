@@ -15,6 +15,7 @@ DEFAULT_BOM_MODEL_DIR = ROOT / "runs" / "bom_estimator"
 DEFAULT_SKILLREC_MODEL_DIR = ROOT / "runs" / "skillrec_transformer"
 DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
+DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 
 
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
@@ -280,5 +281,36 @@ def circuit_validator_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"CircuitValidator inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def inventory_matcher_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    model_dir = Path(payload.get("modelDir") or DEFAULT_INVENTORY_MATCHER_MODEL_DIR)
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.inventory_matcher.train_inventory_matcher --device cuda --amp",
+        }
+
+    try:
+        from ai_models.inventory_matcher.infer_inventory_matcher import InventoryMatcherInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"InventoryMatcher import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        service = InventoryMatcherInference(model_dir=model_dir, device=str(payload.get("device") or "auto"))
+        return service.predict(payload)
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"InventoryMatcher inference failed: {exc}",
             "modelDir": str(model_dir),
         }
