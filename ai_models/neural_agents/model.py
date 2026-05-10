@@ -33,6 +33,9 @@ class NeuralAgentTransformer(nn.Module):
         self.risk_head = nn.Linear(config.d_model, config.risk_count)
         self.debug_head = nn.Linear(config.d_model, config.debug_count)
         self.firmware_head = nn.Linear(config.d_model, config.firmware_count)
+        self.firmware_variant_head = nn.Linear(config.d_model, config.firmware_variant_count)
+        self.board_head = nn.Linear(config.d_model, config.board_count)
+        self.pin_profile_head = nn.Linear(config.d_model, config.pin_profile_count)
 
     def forward(self, input_ids: Tensor, attention_mask: Tensor) -> dict[str, Tensor]:
         batch_size, seq_len = input_ids.shape
@@ -45,6 +48,9 @@ class NeuralAgentTransformer(nn.Module):
             "risk_logits": self.risk_head(pooled),
             "debug_logits": self.debug_head(pooled),
             "firmware_logits": self.firmware_head(pooled),
+            "firmware_variant_logits": self.firmware_variant_head(pooled),
+            "board_logits": self.board_head(pooled),
+            "pin_profile_logits": self.pin_profile_head(pooled),
             "embedding": pooled,
         }
 
@@ -71,4 +77,3 @@ def load_checkpoint(checkpoint: str, map_location: str | torch.device = "cpu") -
     model.load_state_dict(payload["model_state"])
     model.eval()
     return model, config, payload
-
