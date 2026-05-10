@@ -10,8 +10,19 @@ def neural_agent_loss(outputs: dict[str, Tensor], batch: dict[str, Tensor]) -> t
     risk = F.cross_entropy(outputs["risk_logits"], batch["risk_class"])
     debug = F.cross_entropy(outputs["debug_logits"], batch["debug_class"])
     firmware = F.cross_entropy(outputs["firmware_logits"], batch["firmware_class"])
-    loss = safety * 1.2 + risk + debug + firmware
-    return loss, {"safety": safety, "risk": risk, "debug": debug, "firmware": firmware}
+    firmware_variant = F.cross_entropy(outputs["firmware_variant_logits"], batch["firmware_variant_class"])
+    board = F.cross_entropy(outputs["board_logits"], batch["board_class"])
+    pin_profile = F.cross_entropy(outputs["pin_profile_logits"], batch["pin_profile_class"])
+    loss = safety * 1.2 + risk + debug + firmware + firmware_variant + board * 0.7 + pin_profile * 0.7
+    return loss, {
+        "safety": safety,
+        "risk": risk,
+        "debug": debug,
+        "firmware": firmware,
+        "firmware_variant": firmware_variant,
+        "board": board,
+        "pin_profile": pin_profile,
+    }
 
 
 def multilabel_f1(logits: Tensor, targets: Tensor, threshold: float = 0.5) -> float:
@@ -24,4 +35,3 @@ def multilabel_f1(logits: Tensor, targets: Tensor, threshold: float = 0.5) -> fl
 
 def accuracy(logits: Tensor, targets: Tensor) -> float:
     return float((logits.argmax(dim=-1) == targets).float().mean().detach().cpu())
-
