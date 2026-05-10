@@ -469,7 +469,7 @@
         target.innerHTML = items.slice(0, 3).map((item, index) => {
           const title = item.title || item.name || item.projectTitle || `候補${index + 1}`;
           const summary = item.summary || item.description || item.reason || "";
-          const cost = item.costRange || item.estimatedCost || item.budget || "";
+          const cost = item.budgetRange || item.costRange || item.estimatedCost || item.budget || "";
           const difficulty = item.difficulty ? `難易度 ${item.difficulty}` : "";
           return `
             <article class="project-card">
@@ -586,9 +586,15 @@
         try {
           const discover = await postJson("/api/discover/intent", { ...payload, useTransformer: true }, 50000);
           renderProjects(discover);
+          const selectedProject = discover?.recommendations?.[0]?.id || "desk_pet";
+          const classifiedPayload = {
+            ...payload,
+            projectId: selectedProject,
+            text: `${payload.text} projectId ${selectedProject} boardClass ${payload.board} pinProfile ${pinProfileFor(payload.board)} firmwareVariant ${variantFor(selectedProject)}`,
+          };
 
           setProgress("ニューラル分類を実行中");
-          const neural = await postJson("/api/ai/neural-agents", payload, 50000);
+          const neural = await postJson("/api/ai/neural-agents", classifiedPayload, 50000);
           renderNeural(neural);
           renderFirmware(neural);
           renderDebug(neural);
@@ -597,6 +603,7 @@
           setProgress("部品と予算を推定中");
           const bom = await postJson("/api/ai/bom/estimator", {
             ...payload,
+            projectId: neural?.firmware?.projectId || selectedProject,
             project: neural?.firmware?.projectId || payload.text,
             selectedOption: neural?.firmware?.variant?.id || "",
           }, 50000);
@@ -626,6 +633,27 @@
         const number = Number(value);
         if (!Number.isFinite(number)) return "";
         return `${Math.round(number * 100)}%`;
+      }
+
+      function variantFor(projectId) {
+        const map = {
+          light_charm: "light_charm_debug",
+          desk_pet: "desk_pet_buzzer",
+          plant_ping: "plant_ping_buzzer",
+          posture_guard: "posture_guard_buzzer",
+          temp_face: "temp_face_serial",
+        };
+        return map[projectId] || "desk_pet_buzzer";
+      }
+
+      function pinProfileFor(board) {
+        const map = {
+          arduino_uno: "arduino_default",
+          esp32: "esp32_default",
+          m5stack: "m5stack_grove",
+          pico: "pico_default",
+        };
+        return map[board] || "esp32_default";
       }
 
       document.querySelector("#entryChips").addEventListener("click", (event) => {

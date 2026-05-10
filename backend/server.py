@@ -1510,6 +1510,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", f"{mime_type}; charset=utf-8" if mime_type.startswith("text") or mime_type in {"application/javascript", "image/svg+xml"} else mime_type)
         self.send_header("Content-Length", str(len(content)))
+        if target.suffix == ".html":
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(content)
 
