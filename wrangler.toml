@@ -1,0 +1,9 @@
+name = "denshi-craft-agent-api"
+main = "cloudflare/worker.js"
+compatibility_date = "2026-05-10"
+
+[observability]
+enabled = true
+
+[vars]
+APP_NAME = "Lチカのつづき"
