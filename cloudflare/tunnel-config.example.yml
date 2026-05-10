@@ -1,0 +1,7 @@
+tunnel: lchika-gpu-backend
+credentials-file: C:\Users\YOUR_USER\.cloudflared\lchika-gpu-backend.json
+
+ingress:
+  - hostname: api.example.com
+    service: http://localhost:8765
+  - service: http_status:404
