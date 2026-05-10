@@ -13,6 +13,9 @@ class NeuralAgentConfig:
     debug_count: int
     risk_count: int
     firmware_count: int
+    firmware_variant_count: int
+    board_count: int
+    pin_profile_count: int
     max_length: int = 224
     d_model: int = 192
     n_heads: int = 6
@@ -34,4 +37,3 @@ class NeuralAgentConfig:
     @classmethod
     def load(cls, path: str | Path) -> "NeuralAgentConfig":
         return cls.from_json(json.loads(Path(path).read_text(encoding="utf-8")))
-
