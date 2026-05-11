@@ -29,6 +29,18 @@ def cached_service(kind: str, model_dir: Path, device: str, factory: Any) -> Any
     return service
 
 
+def requested_device(payload: dict[str, Any]) -> str:
+    requested = str(payload.get("device") or "auto")
+    if requested != "cuda":
+        return requested
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except Exception:
+        return "cpu"
+
+
 def runtime_health() -> dict[str, Any]:
     checkpoints = {
         "maker_intent_transformer": DEFAULT_MODEL_DIR / "best.pt",
@@ -99,7 +111,7 @@ def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("intent", model_dir, device, lambda: MakerIntentInference(model_dir=model_dir, device=device))
         return {
             "available": True,
@@ -145,7 +157,7 @@ def transformer_project_graph(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         generator = cached_service("project_graph", model_dir, device, lambda: ProjectGraphGenerator(model_dir=model_dir, device=device))
         result = generator.generate(text, max_new_tokens=int(payload.get("maxNewTokens") or 96))
         return {
@@ -181,7 +193,7 @@ def wirechecknet_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("wirecheck", model_dir, device, lambda: WireCheckInference(model_dir=model_dir, device=device))
         threshold = float(payload.get("threshold") or 0.35)
         if payload.get("imageBase64"):
@@ -228,7 +240,7 @@ def neural_bom_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("bom", model_dir, device, lambda: BOMInference(model_dir=model_dir, device=device))
         return service.predict(text, threshold=float(payload.get("threshold") or 0.42))
     except Exception as exc:  # pragma: no cover
@@ -262,7 +274,7 @@ def skillrec_inference(payload: dict[str, Any]) -> dict[str, Any]:
         events = payload.get("events")
         if not isinstance(events, list):
             events = default_events()
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("skillrec", model_dir, device, lambda: SkillRecInference(model_dir=model_dir, device=device))
         return service.predict(events)
     except Exception as exc:  # pragma: no cover
@@ -294,7 +306,7 @@ def neural_agent_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("neural_agent", model_dir, device, lambda: NeuralAgentInference(model_dir=model_dir, device=device))
         return service.predict(payload)
     except Exception as exc:  # pragma: no cover
@@ -326,7 +338,7 @@ def circuit_validator_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("circuit_validator", model_dir, device, lambda: CircuitValidatorInference(model_dir=model_dir, device=device))
         return service.predict(payload)
     except Exception as exc:  # pragma: no cover
@@ -358,7 +370,7 @@ def inventory_matcher_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("inventory_matcher", model_dir, device, lambda: InventoryMatcherInference(model_dir=model_dir, device=device))
         return service.predict(payload)
     except Exception as exc:  # pragma: no cover
@@ -390,7 +402,7 @@ def tutorial_agent_inference(payload: dict[str, Any]) -> dict[str, Any]:
         }
 
     try:
-        device = str(payload.get("device") or "auto")
+        device = requested_device(payload)
         service = cached_service("tutorial_agent", model_dir, device, lambda: TutorialAgentInference(model_dir=model_dir, device=device))
         return service.predict(payload)
     except Exception as exc:  # pragma: no cover
