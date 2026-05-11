@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1477,7 +1477,7 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
-            self.send_json({"ok": True, "service": "Lチカのつづき", "api": "MakerGraph AI prototype"})
+            self.send_json({"ok": True, "service": "Lチカのつづき", "api": "MakerGraph AI prototype", "runtime": runtime_health()})
             return
         if parsed.path == "/api/skills/me":
             self.send_json(skill_state())
