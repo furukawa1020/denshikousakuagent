@@ -1343,6 +1343,112 @@ def project_bundle(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def agent_run(payload: dict[str, Any]) -> dict[str, Any]:
+    """Run the production-facing maker agent pipeline in one request."""
+
+    inventory_match = inventory_matcher_inference(payload)
+    recommended = recommend_projects(payload)
+    project_id = first_project_id(inventory_match) or (recommended[0]["id"] if recommended else "desk_pet")
+    project = get_project(project_id)
+    enriched_payload = {
+        **payload,
+        "projectId": project.id,
+        "text": " ".join([
+            str(payload.get("text") or ""),
+            f"projectId {project.id}",
+            f"boardClass {payload.get('board') or payload.get('boardClass') or board_class_for_project(project)}",
+            f"pinProfile {pin_profile_for_board(payload.get('board') or payload.get('boardClass') or board_class_for_project(project))}",
+            f"firmwareVariant {firmware_variant_for_project(project.id)}",
+        ]).strip(),
+    }
+
+    intent = transformer_intent({**enriched_payload, "useTransformer": True})
+    tutorial = tutorial_agent_inference(enriched_payload)
+    neural = neural_agent_inference(enriched_payload)
+    neural_bom = neural_bom_inference(enriched_payload)
+    bom = estimate_bom(project, enriched_payload)
+    circuit = generate_circuit(project)
+    circuit_validation = circuit_validator_inference({**enriched_payload, "circuitGraph": circuit})
+    skill = skillrec_inference(enriched_payload)
+    next_projects = skill if skill.get("available") else next_recommendations({"projectId": project.id})
+
+    firmware = {}
+    safety = {}
+    debug = {}
+    if neural.get("available"):
+        firmware = dict(neural.get("firmware", {}))
+        safety = dict(neural.get("safety", {}))
+        debug = dict(neural.get("debug", {}))
+
+    return {
+        "available": True,
+        "service": "Lチカのつづき",
+        "pipeline": "makergraph_gpu_agent_v1",
+        "selectedProject": project_summary(project, enriched_payload, "一番おすすめ"),
+        "recommendations": recommended[:3],
+        "intent": intent,
+        "inventoryMatch": inventory_match,
+        "tutorial": tutorial,
+        "projectGraph": build_project_graph(project),
+        "bom": bom,
+        "neuralBom": neural_bom,
+        "circuit": circuit,
+        "circuitValidation": circuit_validation,
+        "firmware": firmware,
+        "safety": safety,
+        "debug": debug,
+        "skillAndNext": next_projects,
+        "deployment": {
+            "gpuRequired": True,
+            "edge": "Cloudflare Worker/Pages",
+            "gpuBackend": "RTX 5060 CUDA backend or GPU server",
+            "healthPath": "/api/health",
+        },
+    }
+
+
+def first_project_id(result: dict[str, Any]) -> str | None:
+    recommendations = result.get("recommendations")
+    if isinstance(recommendations, list) and recommendations:
+        value = recommendations[0].get("projectId") or recommendations[0].get("id")
+        if isinstance(value, str) and value in PROJECTS:
+            return value
+    return None
+
+
+def board_class_for_project(project: MakerProject) -> str:
+    if project.board == "Arduino Uno":
+        return "arduino_uno"
+    if project.board == "M5Stack":
+        return "m5stack"
+    if project.board == "Raspberry Pi Pico":
+        return "pico"
+    return "esp32"
+
+
+def pin_profile_for_board(board: Any) -> str:
+    return {
+        "arduino_uno": "arduino_default",
+        "Arduino Uno": "arduino_default",
+        "esp32": "esp32_default",
+        "ESP32": "esp32_default",
+        "m5stack": "m5stack_grove",
+        "M5Stack": "m5stack_grove",
+        "pico": "pico_default",
+        "Raspberry Pi Pico": "pico_default",
+    }.get(str(board), "esp32_default")
+
+
+def firmware_variant_for_project(project_id: str) -> str:
+    return {
+        "light_charm": "light_charm_debug",
+        "desk_pet": "desk_pet_buzzer",
+        "plant_ping": "plant_ping_buzzer",
+        "posture_guard": "posture_guard_buzzer",
+        "temp_face": "temp_face_serial",
+    }.get(project_id, "desk_pet_buzzer")
+
+
 def safety_report(project: MakerProject) -> dict[str, Any]:
     warnings = [
         "AC100Vを直接扱う構成は初心者向け生成から除外しています。",
@@ -1395,6 +1501,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
                 "transformer": transformer,
                 "entrySuggestions": ENTRY_SUGGESTIONS,
             })
+        elif route == "/api/agent/run":
+            self.send_json(agent_run(payload))
         elif route == "/api/ai/intent/transformer":
             self.send_json(transformer_intent(payload))
         elif route == "/api/ai/project-graph/transformer":
