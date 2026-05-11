@@ -29,6 +29,40 @@ def cached_service(kind: str, model_dir: Path, device: str, factory: Any) -> Any
     return service
 
 
+def runtime_health() -> dict[str, Any]:
+    checkpoints = {
+        "maker_intent_transformer": DEFAULT_MODEL_DIR / "best.pt",
+        "project_graph_transformer": DEFAULT_GRAPH_MODEL_DIR / "best.pt",
+        "wirechecknet": DEFAULT_WIRECHECK_MODEL_DIR / "best.pt",
+        "bom_estimator": DEFAULT_BOM_MODEL_DIR / "best.pt",
+        "skillrec_transformer": DEFAULT_SKILLREC_MODEL_DIR / "best.pt",
+        "neural_agents": DEFAULT_NEURAL_AGENT_MODEL_DIR / "best.pt",
+        "circuit_validator": DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR / "best.pt",
+        "inventory_matcher": DEFAULT_INVENTORY_MATCHER_MODEL_DIR / "best.pt",
+        "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
+    }
+    try:
+        import torch
+
+        cuda_available = torch.cuda.is_available()
+        return {
+            "torch": getattr(torch, "__version__", "unknown"),
+            "cudaAvailable": cuda_available,
+            "cudaVersion": getattr(torch.version, "cuda", None),
+            "gpuName": torch.cuda.get_device_name(0) if cuda_available else None,
+            "checkpoints": {name: path.exists() for name, path in checkpoints.items()},
+        }
+    except Exception as exc:  # pragma: no cover - optional runtime dependency
+        return {
+            "torch": None,
+            "cudaAvailable": False,
+            "cudaVersion": None,
+            "gpuName": None,
+            "torchError": str(exc),
+            "checkpoints": {name: path.exists() for name, path in checkpoints.items()},
+        }
+
+
 def transformer_intent(payload: dict[str, Any]) -> dict[str, Any]:
     """Run the trained Transformer if a checkpoint exists.
 
