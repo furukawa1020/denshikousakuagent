@@ -1,0 +1,23 @@
+{
+  email your-email@example.com
+}
+
+your-domain.example {
+  encode zstd gzip
+
+  # Optional: uncomment after generating a hash with:
+  # caddy hash-password --plaintext "your-strong-password"
+  #
+  # basic_auth {
+  #   maker $2a$14$REPLACE_WITH_CADDY_HASH
+  # }
+
+  reverse_proxy 127.0.0.1:8765
+
+  header {
+    X-Frame-Options DENY
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    Cache-Control no-store
+  }
+}
