@@ -1,0 +1,22 @@
+services:
+  gpu-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: denshi-craft-agent-gpu:local
+    ports:
+      - "8765:8765"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8765"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./runs:/app/runs:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
