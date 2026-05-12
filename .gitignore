@@ -7,3 +7,4 @@ runs/
 *.pth
 *.log
 .ipynb_checkpoints/
+dist/
