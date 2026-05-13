@@ -70,7 +70,8 @@ class TutorialAgentInference:
 
     @torch.no_grad()
     def predict(self, payload: dict[str, Any]) -> dict[str, Any]:
-        text = build_input_text(normalize_payload(payload))
+        normalized = normalize_payload(payload)
+        text = build_input_text(normalized)
         input_ids, mask = self.tokenizer.encode(text, self.config.max_length, "<tutorial>")
         ids = torch.tensor([input_ids], dtype=torch.long, device=self.device)
         attention = torch.tensor([mask], dtype=torch.bool, device=self.device)
@@ -81,6 +82,7 @@ class TutorialAgentInference:
         question = top_class(outputs["question_logits"][0], QUESTIONS)
         checkpoint = top_class(outputs["checkpoint_logits"][0], CHECKPOINTS)
         route = top_class(outputs["route_logits"][0], ROUTES)
+        stage, action, question, checkpoint, route = align_with_requested_stage(normalized, stage, action, question, checkpoint, route)
         concept_probs = outputs["concept_logits"][0].sigmoid().detach().cpu()
         concepts = [
             {"id": CONCEPTS[index], "label": CONCEPT_LABELS[CONCEPTS[index]], "score": round(float(concept_probs[index]), 4)}
@@ -126,6 +128,102 @@ def normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not normalized.get("projectId"):
         normalized["projectId"] = detect_project(text)
     return normalized
+
+
+STAGE_HEAD_DEFAULTS = {
+    "orient": {
+        "action": "show_three_choices",
+        "question": "choose_mood",
+        "checkpoint": "not_started",
+        "route": "minimal",
+    },
+    "parts_check": {
+        "action": "check_inventory",
+        "question": "confirm_inventory",
+        "checkpoint": "idea_selected",
+        "route": "minimal",
+    },
+    "minimal_circuit": {
+        "action": "guide_wiring",
+        "question": "check_gnd",
+        "checkpoint": "parts_ready",
+        "route": "minimal",
+    },
+    "firmware_upload": {
+        "action": "generate_test_firmware",
+        "question": "confirm_board",
+        "checkpoint": "wired_minimal",
+        "route": "minimal",
+    },
+    "observe_serial": {
+        "action": "request_serial_log",
+        "question": "check_serial_value",
+        "checkpoint": "code_uploaded",
+        "route": "minimal",
+    },
+    "debug_triage": {
+        "action": "diagnose_one_cause",
+        "question": "check_gnd",
+        "checkpoint": "needs_debug",
+        "route": "debug_recovery",
+    },
+    "standard_build": {
+        "action": "guide_wiring",
+        "question": "check_gnd",
+        "checkpoint": "observed_signal",
+        "route": "standard",
+    },
+    "enclosure": {
+        "action": "ask_single_question",
+        "question": "choose_next_extension",
+        "checkpoint": "standard_done",
+        "route": "standard",
+    },
+    "extension": {
+        "action": "unlock_next_project",
+        "question": "choose_next_extension",
+        "checkpoint": "standard_done",
+        "route": "extension",
+    },
+    "completion_log": {
+        "action": "save_build_log",
+        "question": "choose_next_extension",
+        "checkpoint": "completed",
+        "route": "extension",
+    },
+}
+
+
+def align_with_requested_stage(
+    payload: dict[str, Any],
+    stage: dict[str, Any],
+    action: dict[str, Any],
+    question: dict[str, Any],
+    checkpoint: dict[str, Any],
+    route: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+    requested_stage = str(payload.get("currentStage") or payload.get("stage") or "")
+    symptom = str(payload.get("symptom") or "none")
+    if symptom != "none":
+        requested_stage = "debug_triage"
+    if requested_stage not in STAGE_HEAD_DEFAULTS:
+        return stage, action, question, checkpoint, route
+
+    defaults = STAGE_HEAD_DEFAULTS[requested_stage]
+    stage = {**stage, "id": requested_stage}
+    action = {**action, "id": defaults["action"]}
+    question = {**question, "id": defaults["question"]}
+    checkpoint = {**checkpoint, "id": defaults["checkpoint"]}
+    route = {**route, "id": defaults["route"]}
+
+    if symptom == "led_not_lighting":
+        question = {**question, "id": "check_led_polarity"}
+    elif symptom == "upload_failed":
+        question = {**question, "id": "check_usb_port"}
+    elif symptom == "sensor_static":
+        question = {**question, "id": "check_serial_value"}
+
+    return stage, action, question, checkpoint, route
 
 
 def detect_project(text: str) -> str:
