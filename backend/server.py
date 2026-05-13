@@ -1303,6 +1303,183 @@ def next_recommendations(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
+    question = str(payload.get("question") or payload.get("nextQuestion") or "")
+    answer = str(payload.get("answer") or payload.get("text") or "")
+    current_stage = str(payload.get("currentStage") or payload.get("stage") or "orient")
+    project = get_project(payload.get("projectId"))
+    kind = classify_free_answer(answer)
+    next_stage = next_stage_from_free_answer(question, answer, current_stage, kind)
+    reply = compose_tutorial_reply(project, question, answer, current_stage, next_stage, kind, payload)
+    preview_payload = {
+        **payload,
+        "projectId": project.id,
+        "currentStage": next_stage,
+        "text": " ".join([
+            str(payload.get("text") or ""),
+            f"question: {question}",
+            f"answer: {answer}",
+            f"interpretedAnswer: {kind}",
+        ]).strip(),
+    }
+    tutorial = tutorial_agent_inference(preview_payload)
+    return {
+        "available": True,
+        "model": "TutorialFreeResponseSynthesizer",
+        "mode": "hybrid_neural_free_answer",
+        "projectId": project.id,
+        "question": question,
+        "answer": answer,
+        "interpreted": kind,
+        "kind": reply["kind"],
+        "title": reply["title"],
+        "body": reply["body"],
+        "nextInstruction": reply["nextInstruction"],
+        "nextStage": next_stage,
+        "suggestedChips": reply["suggestedChips"],
+        "confidence": confidence_for_free_answer(kind, question, answer),
+        "tutorialPreview": tutorial if tutorial.get("available") else None,
+    }
+
+
+def classify_free_answer(answer: str) -> str:
+    normalized = normalize_answer(answer)
+    if not normalized:
+        return "empty"
+    if any(token in normalized for token in ["写真", "画像", "photo", "camera", "pic"]):
+        return "photo_request"
+    if any(token in normalized for token in ["分からない", "わからない", "不明", "知らない", "自信ない", "unknown", "?" , "？"]):
+        return "unknown"
+    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "できない", "出ない", "動かない", "光らない", "鳴らない", "止まる", "落ちる"]):
+        return "problem_report"
+    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "ok", "yes", "はい", "同じ", "つながってる", "つないだ"]):
+        return "confirmed"
+    if any(token in normalized for token in ["いいえ", "no", "違う", "まだ", "無い", "ない", "入ってない", "つながってない"]):
+        return "negative"
+    if looks_like_inventory(answer):
+        return "inventory_report"
+    if any(token in normalized for token in ["arduino", "esp32", "m5", "pico", "microbit", "micro:bit"]):
+        return "board_report"
+    if len(answer) >= 18:
+        return "descriptive"
+    return "short_answer"
+
+
+def normalize_answer(answer: str) -> str:
+    return re.sub(r"\s+", "", answer).lower()
+
+
+def looks_like_inventory(answer: str) -> bool:
+    lowered = answer.lower()
+    known_parts = ["esp32", "arduino", "m5", "pico", "led", "抵抗", "ブレッドボード", "ジャンパ", "usb", "センサー", "ブザー", "サーボ", "oled", "モーター"]
+    if sum(1 for part in known_parts if part in lowered or part in answer) >= 2:
+        return True
+    return "," in answer or "、" in answer
+
+
+def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str) -> str:
+    if is_inventory_question_text(question):
+        return "minimal_circuit"
+    if is_board_question_text(question):
+        return "firmware_upload" if current_stage in {"firmware_upload", "observe_serial"} else "minimal_circuit"
+    if is_gnd_question_text(question):
+        return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
+    if "LED" in question or "led" in question.lower() or "抵抗" in question:
+        return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
+    if "シリアル" in question or "起動メッセージ" in question or "値" in question:
+        return "standard_build" if kind == "confirmed" else "debug_triage"
+    if "ポート" in question or "書き込" in question:
+        return "observe_serial" if kind == "confirmed" else "debug_triage"
+    if kind in {"problem_report", "photo_request"}:
+        return "debug_triage"
+    if kind == "confirmed":
+        order = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "enclosure", "extension", "completion_log"]
+        if current_stage in order and order.index(current_stage) < len(order) - 1:
+            return order[order.index(current_stage) + 1]
+    if kind == "inventory_report":
+        return "minimal_circuit"
+    if kind == "board_report":
+        return "minimal_circuit"
+    return current_stage if current_stage in {"debug_triage", "minimal_circuit", "firmware_upload", "observe_serial"} else "parts_check"
+
+
+def compose_tutorial_reply(project: MakerProject, question: str, answer: str, current_stage: str, next_stage: str, kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    chips = ["できた", "分からない", "写真で確認したい"]
+    tone = "good" if kind in {"confirmed", "inventory_report", "board_report"} else "warn" if kind in {"negative", "unknown", "problem_report", "photo_request"} else "info"
+
+    if is_inventory_question_text(question):
+        if kind == "unknown":
+            return reply("warn", "部品が分からなくても進めます", "スターター構成として扱います。必要部品込みで見積もり、まずは最小回路から始めます。", "次はLED・抵抗・GNDだけの最小確認へ進みます。", ["スターターで進む", "写真で確認したい", "部品を後で直す"])
+        return reply("good", "部品情報を受け取りました", "書いてくれた部品を所持品として扱います。不足分はBOM側で分けて出します。", "次はUSBを抜いた状態で、最小回路のGND共有を確認します。", ["GNDを確認する", "部品を追加する", "分からない"])
+
+    if is_board_question_text(question):
+        return reply("good", "ボード情報を受け取りました", "このボードに合わせてピン番号と確認コードを組み立てます。", "次は最小回路とコードのピン番号を合わせます。", ["ESP32で進む", "Arduinoで進む", "分からない"])
+
+    if is_gnd_question_text(question):
+        if kind == "confirmed":
+            return reply("good", "GND共有はクリアです", "LED・センサー・ボードのGNDが同じ基準になっているので、次は確認コードを書き込む段階へ進めます。", "ボードとポートを確認して、シリアル出力つきのコードで動作を見ます。", ["コードを書き込む", "ピン番号を確認", "写真で見たい"])
+        if kind == "photo_request":
+            return reply("warn", "写真チェックに回しましょう", "真上から、ボードのGNDピンとブレッドボードのGND列が見えるように撮ると判断しやすいです。", "撮れたら配線写真チェックに進みます。今はUSBを抜いてください。", ["写真を撮る", "GNDをつなぎ直した", "分からない"])
+        return reply("warn", "GNDを同じ列につなぎ直します", "USBを抜いてから、LEDのマイナス側、センサーのGND、ボードのGNDを同じGND列へつなぎます。ここが違うと全部動かないことがあります。", "つなぎ直せたら「つなぎ直した」と答えてください。", ["つなぎ直した", "写真で確認したい", "分からない"])
+
+    if "LED" in question or "led" in question.lower():
+        if kind == "confirmed":
+            return reply("good", "LEDの向きは大丈夫そうです", "長い足が抵抗を通ってGPIO側、短い足がGND側なら次へ進めます。", "次は抵抗とコードのピン番号を合わせます。", chips)
+        return reply("warn", "LEDの向きを直してから進みます", "LEDは向きがあります。長い足をGPIO側、短い足をGND側にします。USBを抜いてから直してください。", "直せたら、もう一度LEDだけで点灯確認します。", ["直した", "写真で確認したい", "分からない"])
+
+    if "抵抗" in question:
+        if kind == "confirmed":
+            return reply("good", "抵抗は入っています", "LEDをGPIOへ直結していないので、まず安全な形です。", "次はコードのGPIO番号と配線先を一致させます。", chips)
+        return reply("warn", "抵抗を直列に入れます", "LEDとGPIOの間に220Ω前後の抵抗を入れてください。抵抗なしの直結は避けます。", "抵抗を足せたら、再度LEDだけで確認します。", ["抵抗を入れた", "抵抗がない", "分からない"])
+
+    if "シリアル" in question or "起動メッセージ" in question or "値" in question:
+        if kind == "confirmed":
+            return reply("good", "ログが見えています", "起動メッセージや値が見えているなら、コードは最低限動いています。", "次は手を近づける、暗くするなど、入力に応じて値が変わるか確認します。", ["値が変わる", "値が変わらない", "次へ"])
+        return reply("warn", "ログを見る準備をします", "シリアルモニタを開き、速度をSerial.beginの値に合わせます。何も出ない場合はポート、ボード、USBケーブルを順に確認します。", "まず起動メッセージが出るかだけ見ます。", ["ログが出た", "何も出ない", "エラーが出た"])
+
+    if kind == "problem_report":
+        return reply("warn", "動かない状態として受け取りました", "原因を広げず、物理接続、電源、コードの順に一つずつ潰します。", "まずUSBを抜いて、GND共有とピン番号だけ確認します。", ["GNDを見た", "エラー文がある", "写真で確認したい"])
+    if kind == "photo_request":
+        return reply("warn", "写真で確認する流れにします", "真上から、ボード名、GND、LED、抵抗、ジャンパ線の刺さる列が見えるように撮ると判断できます。", "写真をアップしたら、怪しい箇所を一つずつ見ます。", ["写真を撮る", "先に文章で続ける", "分からない"])
+    if kind == "confirmed":
+        return reply("good", "確認できました", "その回答を受け取って、次の短い作業へ進めます。", "次のカードで、やることを一つだけ出します。", chips)
+    if kind == "unknown":
+        return reply("warn", "分からない前提で進めます", "ここで止めず、初心者向けの確認順に戻します。テスター前提にはしません。", "USBを抜く、GND、LED向き、抵抗、ピン番号の順に一つだけ見ます。", ["最小確認する", "写真で確認したい", "部品から見直す"])
+    return reply(tone, "回答を受け取りました", f"「{answer[:80]}」として受け取りました。次の作業に反映します。", "次のカードで、確認する点を一つに絞ります。", chips)
+
+
+def reply(kind: str, title: str, body: str, next_instruction: str, chips: list[str]) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "title": title,
+        "body": body,
+        "nextInstruction": next_instruction,
+        "suggestedChips": chips,
+    }
+
+
+def confidence_for_free_answer(kind: str, question: str, answer: str) -> float:
+    if kind in {"confirmed", "negative", "inventory_report", "board_report", "problem_report", "photo_request"}:
+        return 0.84
+    if kind == "unknown":
+        return 0.72
+    if len(answer) >= 18:
+        return 0.66
+    return 0.52
+
+
+def is_inventory_question_text(question: str) -> bool:
+    return any(token in question for token in ["部品", "手元", "持っている", "所持"]) or "inventory" in question.lower()
+
+
+def is_board_question_text(question: str) -> bool:
+    return any(token in question for token in ["ボード", "Arduino", "ESP32", "M5Stack", "Pico"])
+
+
+def is_gnd_question_text(question: str) -> bool:
+    return any(token in question for token in ["GND", "グランド", "ground"])
+
+
 def wiring_check(payload: dict[str, Any]) -> dict[str, Any]:
     project = get_project(payload.get("projectId"))
     return {
@@ -1521,6 +1698,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(inventory_matcher_inference(payload))
         elif route == "/api/ai/tutorial-agent":
             self.send_json(tutorial_agent_inference(payload))
+        elif route == "/api/tutorial/respond":
+            self.send_json(tutorial_free_response(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route in {"/api/tutorial/start", "/api/tutorial/next", "/api/tutorial/answer"}:
