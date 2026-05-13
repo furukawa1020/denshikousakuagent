@@ -1389,10 +1389,32 @@
         return map[board] || "esp32_default";
       }
 
+      helpButton.addEventListener("click", startGuide);
+      guideCloseButton.addEventListener("click", closeGuide);
+      guidePrevButton.addEventListener("click", previousGuideStep);
+      guideNextButton.addEventListener("click", nextGuideStep);
+      guideFillButton.addEventListener("click", applyGuideExample);
+      window.addEventListener("resize", () => {
+        if (!guideOverlay.classList.contains("hidden") && state.activeGuideTarget) {
+          positionGuide(state.activeGuideTarget);
+        }
+      });
+      window.addEventListener("scroll", () => {
+        if (!guideOverlay.classList.contains("hidden") && state.activeGuideTarget) {
+          positionGuide(state.activeGuideTarget);
+        }
+      }, true);
+      document.addEventListener("keydown", (event) => {
+        if (guideOverlay.classList.contains("hidden")) return;
+        if (event.key === "Escape") closeGuide();
+        if (event.key === "ArrowRight") nextGuideStep();
+        if (event.key === "ArrowLeft") previousGuideStep();
+      });
+
       document.querySelector("#entryChips").addEventListener("click", (event) => {
         const button = event.target.closest(".chip");
         if (!button) return;
-        document.querySelectorAll(".chip").forEach((chip) => chip.classList.remove("active"));
+        document.querySelectorAll("#entryChips .chip").forEach((chip) => chip.classList.remove("active"));
         button.classList.add("active");
         state.selectedEntry = button.dataset.text || "";
       });
