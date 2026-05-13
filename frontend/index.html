@@ -210,6 +210,187 @@
         cursor: wait;
       }
 
+      .help-button {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        z-index: 1200;
+        width: 76px;
+        height: 76px;
+        border: 0;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 16px 34px rgba(15, 118, 110, 0.32);
+        font-size: 42px;
+        font-weight: 900;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .help-button span {
+        display: block;
+        transform: translateY(-1px);
+      }
+
+      .guide-overlay.hidden {
+        display: none;
+      }
+
+      .guide-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 900;
+        background: rgba(18, 28, 31, 0.48);
+        pointer-events: none;
+      }
+
+      .guide-card {
+        position: fixed;
+        z-index: 1120;
+        width: min(360px, calc(100vw - 32px));
+        border: 1px solid #b7d8d3;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 24px 70px rgba(12, 20, 24, 0.24);
+        padding: 15px;
+        pointer-events: auto;
+      }
+
+      .guide-card h3 {
+        margin-top: 6px;
+        font-size: 18px;
+      }
+
+      .guide-card p {
+        margin-top: 8px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .guide-step-label {
+        color: #0f4f4a;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .guide-example {
+        margin-top: 10px;
+        border-left: 4px solid var(--accent);
+        border-radius: 8px;
+        background: var(--accent-weak);
+        padding: 10px;
+        color: #0f4f4a;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .guide-actions {
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        gap: 8px;
+        align-items: center;
+        margin-top: 13px;
+      }
+
+      .guide-actions button {
+        border-radius: 8px;
+        padding: 9px 11px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .guide-actions .ghost {
+        border: 1px solid var(--line);
+        background: #fff;
+        color: var(--ink);
+      }
+
+      .guide-actions .fill {
+        border: 1px solid var(--accent);
+        background: var(--accent-weak);
+        color: #0f4f4a;
+      }
+
+      .guide-actions .next {
+        border: 0;
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .guide-cursor {
+        position: fixed;
+        z-index: 1110;
+        width: 68px;
+        height: 86px;
+        background: #ffffff;
+        clip-path: polygon(0 0, 0 78%, 23% 60%, 39% 100%, 57% 92%, 42% 55%, 78% 55%);
+        filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9)) drop-shadow(0 14px 24px rgba(0, 0, 0, 0.26));
+        transform: translate(20px, 20px);
+        transition: transform 0.34s ease;
+        pointer-events: none;
+      }
+
+      .guide-pulse {
+        position: fixed;
+        z-index: 1095;
+        width: 44px;
+        height: 44px;
+        border: 3px solid rgba(15, 118, 110, 0.72);
+        border-radius: 50%;
+        transform: translate(20px, 20px);
+        animation: guidePulse 1.3s ease-in-out infinite;
+        pointer-events: none;
+      }
+
+      .guide-speech {
+        position: fixed;
+        z-index: 1116;
+        max-width: min(300px, calc(100vw - 32px));
+        border: 1px solid #b7d8d3;
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--ink);
+        box-shadow: 0 16px 38px rgba(12, 20, 24, 0.2);
+        padding: 12px 13px;
+        font-size: 15px;
+        font-weight: 800;
+        line-height: 1.55;
+        pointer-events: none;
+      }
+
+      .guide-speech::after {
+        content: "";
+        position: absolute;
+        left: 18px;
+        bottom: -10px;
+        width: 18px;
+        height: 18px;
+        border-right: 1px solid #b7d8d3;
+        border-bottom: 1px solid #b7d8d3;
+        background: #ffffff;
+        transform: rotate(45deg);
+      }
+
+      @keyframes guidePulse {
+        0% {
+          opacity: 0.95;
+          scale: 0.78;
+        }
+        100% {
+          opacity: 0;
+          scale: 1.65;
+        }
+      }
+
+      .guide-highlight {
+        position: relative;
+        z-index: 1050;
+        outline: 4px solid rgba(15, 118, 110, 0.9);
+        outline-offset: 4px;
+        box-shadow: 0 0 0 9999px rgba(18, 28, 31, 0.18), 0 0 28px rgba(15, 118, 110, 0.68);
+      }
+
       .progress {
         color: var(--muted);
         font-size: 14px;
@@ -424,6 +605,22 @@
           width: 100%;
         }
 
+        .help-button {
+          right: 16px;
+          bottom: 16px;
+          width: 68px;
+          height: 68px;
+          font-size: 38px;
+        }
+
+        .guide-actions {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .guide-actions .fill {
+          grid-column: span 2;
+        }
+
         .status {
           justify-content: flex-start;
         }
@@ -564,6 +761,29 @@
       </div>
     </main>
 
+    <button class="help-button" id="helpButton" type="button" aria-label="使い方を開く">
+      <span>?</span>
+    </button>
+
+    <div class="guide-overlay hidden" id="guideOverlay" aria-hidden="true">
+      <div class="guide-backdrop"></div>
+      <div class="guide-cursor" id="guideCursor"></div>
+      <div class="guide-pulse" id="guidePulse"></div>
+      <div class="guide-speech" id="guideSpeech">ここから始めます。</div>
+      <section class="guide-card" id="guideCard" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+        <span class="guide-step-label" id="guideCount">1 / 8</span>
+        <h3 id="guideTitle">使い方</h3>
+        <p id="guideText"></p>
+        <div class="guide-example" id="guideExample"></div>
+        <div class="guide-actions">
+          <button class="ghost" type="button" id="guideCloseButton">閉じる</button>
+          <button class="ghost" type="button" id="guidePrevButton">戻る</button>
+          <button class="fill" type="button" id="guideFillButton">入力例を入れる</button>
+          <button class="next" type="button" id="guideNextButton">次へ</button>
+        </div>
+      </section>
+    </div>
+
     <script>
       const API_BASE = window.API_BASE || localStorage.getItem("DENSHI_API_BASE") || "";
       const PROJECT_LABELS = {
@@ -579,12 +799,104 @@
         selectedProject: "desk_pet",
         latest: null,
         latestQuestion: "",
+        guideStep: 0,
+        activeGuideTarget: null,
       };
+
+      const GUIDE_STEPS = [
+        {
+          id: "intent",
+          selector: "#intent",
+          title: "まず、今の状態を書く",
+          text: "作りたいものが決まっていなくても大丈夫です。気分、予算、持っている部品をそのまま入れると候補が出やすくなります。",
+          example: "作りたいものはまだ決まっていない。予算は5000円。かわいいものがいい。ESP32とLEDがあります。",
+          bubble: "ここに、いまの状況を文章で入れます。",
+        },
+        {
+          id: "entry",
+          selector: "#entryChips",
+          title: "入口をひとつ選ぶ",
+          text: "迷っているときは「かわいい」「困りごと」「Lチカの次」から選びます。ここで作品の方向性が決まります。",
+          example: "例: かわいい",
+          bubble: "迷ったら、まずはこの入口をひとつ選びます。",
+        },
+        {
+          id: "budget",
+          selector: "#budget",
+          title: "予算を選ぶ",
+          text: "部品代は範囲で見積もります。迷うなら5,000円以内が、初心者の最初の作品にちょうどいいです。",
+          example: "例: 5,000円以内",
+          bubble: "ここで買える範囲を決めます。",
+        },
+        {
+          id: "board",
+          selector: "#board",
+          title: "使うボードを選ぶ",
+          text: "ESP32、Arduino、M5Stackなど、手元にあるものを選びます。コード生成とピン割り当てに使います。",
+          example: "例: ESP32",
+          bubble: "持っているマイコンを選びます。",
+        },
+        {
+          id: "inventory",
+          selector: "#inventory",
+          title: "持っている部品を書く",
+          text: "正確でなくても大丈夫です。LED、抵抗、ブレッドボード、USBケーブルのように分かる範囲で並べます。",
+          example: "ESP32, LED, 220Ω抵抗, ブレッドボード, ジャンパ線, USBケーブル",
+          bubble: "部品名をカンマ区切りで入れます。",
+        },
+        {
+          id: "stage",
+          selector: "#stage",
+          title: "今の段階を選ぶ",
+          text: "まだ探しているのか、配線中なのか、動かなくて困っているのかを選ぶと、次の一手が変わります。",
+          example: "例: まだ選んでいる",
+          bubble: "いま作業がどこまで進んでいるかを選びます。",
+        },
+        {
+          id: "symptom",
+          selector: "#symptom",
+          title: "困っている症状を選ぶ",
+          text: "動かない場合だけ選びます。まだ困っていなければ「まだない」のままで進めます。",
+          example: "例: LEDが光らない / まだない",
+          bubble: "困っている時だけ症状を選びます。",
+        },
+        {
+          id: "run",
+          selector: "#runButton",
+          title: "生成する",
+          text: "ここを押すと、作品候補、予算、部品、チュートリアル、コード、デバッグ判断までまとめて生成します。",
+          example: "押すだけで開始します。",
+          bubble: "入力できたら、このボタンで生成します。",
+        },
+        {
+          id: "answer",
+          selector: "#answerBox",
+          fallback: "#tutorial",
+          title: "次の質問に答える",
+          text: "生成後は、自律チュートリアルの質問に答えます。回答すると左の「今の状態」に追記され、次の手順へ進みます。",
+          example: "例: LEDはまだ光っていない / 分からない",
+          bubble: "生成後は、この質問に答えると次へ進みます。",
+        },
+      ];
 
       const statusText = document.querySelector("#statusText");
       const progress = document.querySelector("#progress");
       const runButton = document.querySelector("#runButton");
       const dot = document.querySelector("#dot");
+      const helpButton = document.querySelector("#helpButton");
+      const guideOverlay = document.querySelector("#guideOverlay");
+      const guideCard = document.querySelector("#guideCard");
+      const guideCursor = document.querySelector("#guideCursor");
+      const guidePulse = document.querySelector("#guidePulse");
+      const guideSpeech = document.querySelector("#guideSpeech");
+      const guideCount = document.querySelector("#guideCount");
+      const guideTitle = document.querySelector("#guideTitle");
+      const guideText = document.querySelector("#guideText");
+      const guideExample = document.querySelector("#guideExample");
+      const guideCloseButton = document.querySelector("#guideCloseButton");
+      const guidePrevButton = document.querySelector("#guidePrevButton");
+      const guideNextButton = document.querySelector("#guideNextButton");
+      const guideFillButton = document.querySelector("#guideFillButton");
 
       function setStatus(text, ready = false) {
         statusText.textContent = text;
@@ -593,6 +905,129 @@
 
       function setProgress(text) {
         progress.textContent = text;
+      }
+
+      function startGuide() {
+        state.guideStep = 0;
+        guideOverlay.classList.remove("hidden");
+        guideOverlay.setAttribute("aria-hidden", "false");
+        showGuideStep();
+      }
+
+      function closeGuide() {
+        clearGuideHighlight();
+        guideOverlay.classList.add("hidden");
+        guideOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function showGuideStep() {
+        clearGuideHighlight();
+        const step = GUIDE_STEPS[state.guideStep];
+        const target = findGuideTarget(step);
+        if (!target) {
+          closeGuide();
+          return;
+        }
+
+        target.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+        guideCount.textContent = `${state.guideStep + 1} / ${GUIDE_STEPS.length}`;
+        guideTitle.textContent = step.title;
+        guideText.textContent = step.text;
+        guideExample.textContent = step.example;
+        guideSpeech.textContent = step.bubble || step.title;
+        guidePrevButton.disabled = state.guideStep === 0;
+        guideNextButton.textContent = state.guideStep === GUIDE_STEPS.length - 1 ? "完了" : "次へ";
+        guideFillButton.style.visibility = ["run", "answer"].includes(step.id) ? "hidden" : "visible";
+
+        window.setTimeout(() => {
+          target.classList.add("guide-highlight");
+          state.activeGuideTarget = target;
+          positionGuide(target);
+        }, 240);
+      }
+
+      function findGuideTarget(step) {
+        return document.querySelector(step.selector) || (step.fallback ? document.querySelector(step.fallback) : null);
+      }
+
+      function positionGuide(target) {
+        const rect = target.getBoundingClientRect();
+        const cursorX = clamp(rect.left + rect.width * 0.74, 20, window.innerWidth - 88);
+        const cursorY = clamp(rect.top + rect.height * 0.46, 20, window.innerHeight - 106);
+        guideCursor.style.transform = `translate(${cursorX}px, ${cursorY}px)`;
+        guidePulse.style.transform = `translate(${cursorX + 10}px, ${cursorY + 16}px)`;
+
+        const speechWidth = Math.min(300, window.innerWidth - 32);
+        let speechLeft = cursorX + 54;
+        if (speechLeft + speechWidth > window.innerWidth - 16) {
+          speechLeft = cursorX - speechWidth + 10;
+        }
+        speechLeft = clamp(speechLeft, 16, window.innerWidth - speechWidth - 16);
+        let speechTop = cursorY - 76;
+        speechTop = clamp(speechTop, 16, window.innerHeight - guideSpeech.offsetHeight - 16);
+        guideSpeech.style.left = `${speechLeft}px`;
+        guideSpeech.style.top = `${speechTop}px`;
+
+        const cardWidth = Math.min(360, window.innerWidth - 32);
+        let left = rect.right + 18;
+        if (left + cardWidth > window.innerWidth - 16) {
+          left = rect.left - cardWidth - 18;
+        }
+        left = clamp(left, 16, window.innerWidth - cardWidth - 16);
+
+        let top = rect.top + rect.height / 2 - 118;
+        top = clamp(top, 16, window.innerHeight - guideCard.offsetHeight - 16);
+        guideCard.style.left = `${left}px`;
+        guideCard.style.top = `${top}px`;
+      }
+
+      function clearGuideHighlight() {
+        if (state.activeGuideTarget) {
+          state.activeGuideTarget.classList.remove("guide-highlight");
+          state.activeGuideTarget = null;
+        }
+      }
+
+      function nextGuideStep() {
+        if (state.guideStep >= GUIDE_STEPS.length - 1) {
+          closeGuide();
+          return;
+        }
+        state.guideStep += 1;
+        showGuideStep();
+      }
+
+      function previousGuideStep() {
+        if (state.guideStep <= 0) return;
+        state.guideStep -= 1;
+        showGuideStep();
+      }
+
+      function applyGuideExample() {
+        const step = GUIDE_STEPS[state.guideStep];
+        if (!step) return;
+        if (step.id === "intent") {
+          document.querySelector("#intent").value = step.example;
+        } else if (step.id === "entry") {
+          const chip = document.querySelector('#entryChips .chip[data-text="かわいいものを作りたい"]');
+          chip?.click();
+        } else if (step.id === "budget") {
+          document.querySelector("#budget").value = "5000";
+        } else if (step.id === "board") {
+          document.querySelector("#board").value = "esp32";
+        } else if (step.id === "inventory") {
+          document.querySelector("#inventory").value = step.example;
+        } else if (step.id === "stage") {
+          document.querySelector("#stage").value = "orient";
+        } else if (step.id === "symptom") {
+          document.querySelector("#symptom").value = "none";
+        }
+        setProgress("入力例を入れました。内容は自由に書き換えられます。");
+        showGuideStep();
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
       }
 
       function requestPayload() {
