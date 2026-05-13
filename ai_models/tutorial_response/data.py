@@ -426,11 +426,84 @@ def build_target(project_id: str, question: str, answer: str, current_stage: str
         body = choose(rng, ["今の回答を次の作業に反映します。迷わないように確認点を一つに絞ります。", f"「{answer_snippet}」として受け取りました。", "曖昧なところは安全側に倒して進めます。"])
         instruction = choose(rng, ["次のカードで短い作業だけを進めます。", "一つだけ確認してから先へ進みます。", "分からなければ写真チェックに回せます。"])
 
-    if rng.random() < 0.22:
-        body += " テスターがなくても、まず目視確認から進めます。"
-    if rng.random() < 0.16:
-        instruction += " USBを挿したまま配線を差し替えないでください。"
+    body = enrich_body(body, topic, project_title, current_stage, next_stage, answer_snippet, rng)
+    instruction = enrich_instruction(instruction, topic, current_stage, next_stage, rng)
     return f"style:{style}\ntitle:{title}\nbody:{body}\nnext:{instruction}\nstage:{next_stage}"
+
+
+def enrich_body(body: str, topic: str, project_title: str, current_stage: str, next_stage: str, answer_snippet: str, rng: random.Random) -> str:
+    additions: list[str] = []
+    if rng.random() < 0.38:
+        additions.append(choose(rng, [
+            "テスターがなくても、まず目視確認から進めます。",
+            "一度に複数箇所を直すと原因が追えないので、ここでは一つだけ見ます。",
+            "初心者向けには、先に安全なUSB給電の範囲で確認します。",
+            "ここを急がずに見ると、後のデバッグがかなり楽になります。",
+            "写真で確認する場合も、この観点で見ると判断しやすいです。",
+        ]))
+    if rng.random() < 0.3:
+        additions.append(choose(rng, [
+            f"{project_title}は、最小構成が動いてから作品らしさを足す方が成功しやすいです。",
+            f"今は{project_title}の完成形ではなく、動く最小版を守ります。",
+            f"この確認は{project_title}の次ステップにも再利用できます。",
+        ]))
+    if rng.random() < 0.26:
+        additions.append(choose(rng, [
+            f"入力は「{answer_snippet}」として受け取りました。",
+            f"今の回答は{next_stage}へ進めるための材料にします。",
+            f"{current_stage}の途中として扱い、次の確認を短くします。",
+        ]))
+    if rng.random() < 0.22:
+        additions.append(topic_hint(topic, rng))
+    return " ".join([body, *[item for item in additions if item]]).strip()
+
+
+def enrich_instruction(instruction: str, topic: str, current_stage: str, next_stage: str, rng: random.Random) -> str:
+    additions: list[str] = []
+    if rng.random() < 0.28:
+        additions.append(choose(rng, [
+            "USBを挿したまま配線を差し替えないでください。",
+            "作業前にUSBを抜いてから触ります。",
+            "終わったら一回だけ確認コードで試します。",
+            "うまくいかなければ写真チェックに切り替えます。",
+            "答えは短くて大丈夫です。",
+        ]))
+    if rng.random() < 0.22:
+        additions.append(choose(rng, [
+            f"次の段階は{next_stage}として扱います。",
+            f"{current_stage}には戻らず、確認点を一つ進めます。",
+            "ここで結果を制作ログにも残します。",
+            "迷ったら「分からない」で進めます。",
+        ]))
+    if rng.random() < 0.18:
+        additions.append(topic_next_hint(topic, rng))
+    return " ".join([instruction, *[item for item in additions if item]]).strip()
+
+
+def topic_hint(topic: str, rng: random.Random) -> str:
+    table = {
+        "gnd": ["GNDは全部の基準なので、違う列だとLEDもセンサーも反応しにくくなります。", "線の色ではなく、刺さっている列が同じかを見ます。"],
+        "led": ["LEDは向きがあるので、足の長さか平らな側を手がかりにします。", "LED単体で確認できると、後のセンサー追加が楽です。"],
+        "resistor": ["抵抗は向きがないので、LEDとGPIOの間に入っていれば大丈夫です。", "抵抗なしの直結は避けて、安全側で進めます。"],
+        "usb_port": ["ポートが見えない時は、充電専用ケーブルが原因のことがあります。", "ボード設定とポート設定は別々に確認します。"],
+        "serial": ["シリアルは、コードが動いているかを見る窓として使います。", "文字化けする時は速度設定を疑います。"],
+        "inventory": ["部品名が曖昧でも、不足候補として扱えば進められます。", "分かる部品だけで最小構成を作ります。"],
+        "extension": ["拡張は一度に一つだけ足すと、失敗しても戻しやすいです。", "作品らしさは外装・音・光のどれか一つから足します。"],
+    }
+    return choose(rng, table.get(topic, ["ここでは一つの確認に絞ります。"]))
+
+
+def topic_next_hint(topic: str, rng: random.Random) -> str:
+    table = {
+        "gnd": ["直せたら「GNDつなぎ直した」と返してください。", "写真で見るなら真上から撮ります。"],
+        "led": ["次はLEDだけで点灯確認します。", "向きが不安なら別のLEDで試しても大丈夫です。"],
+        "resistor": ["抵抗がなければ購入リストに回します。", "入れたらGPIO番号の確認へ進みます。"],
+        "usb_port": ["ポートが出たら書き込み確認へ進みます。", "別ケーブルがあれば交換して試します。"],
+        "serial": ["値が出たら、手を近づけて変化を見る段階です。", "何も出なければポートと速度を見直します。"],
+        "inventory": ["足りないものはBOMに分けて出します。", "次は最小回路の確認へ進みます。"],
+        "extension": ["変更前の動く状態を残してから足します。", "次は追加部品を一つだけ選びます。"],
+    }
+    return choose(rng, table.get(topic, ["次の確認へ進みます。"]))
 
 
 def topic_for_question(question: str) -> str:
