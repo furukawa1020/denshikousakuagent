@@ -761,7 +761,9 @@
         const needsDebug = ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
           normalized.includes(word)
         );
-        if (needsDebug && currentStage !== "orient" && currentStage !== "parts_check") {
+        if (needsDebug) {
+          if (currentStage === "orient") return "parts_check";
+          if (currentStage === "parts_check") return "parts_check";
           return "debug_triage";
         }
 
