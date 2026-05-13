@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lチカのつづき</title>
+    <title>Lチカのつづき - AI制作エージェント</title>
     <style>
       :root {
         color-scheme: light;
@@ -907,10 +907,11 @@
             </svg>
             <span>MakerGraph AI</span>
           </div>
-          <span class="splash-kicker">はじめての電子工作エージェント</span>
+          <span class="splash-kicker">はじめの一歩のその先まで伴走するAIエージェント</span>
           <h2>Lチカのつづき</h2>
-          <p>作りたいものがまだふわっとしていても、部品、予算、回路、コード、次の一手まで一緒に組み立てます。</p>
+          <p>作りたいものがまだふわっとしていても、部品、予算、回路、コード、デバッグ、次の一手まで自律的に組み立てます。</p>
           <div class="splash-tags">
+            <span>自律エージェント</span>
             <span>作品発見</span>
             <span>部品と予算</span>
             <span>配線チェック</span>
@@ -934,7 +935,7 @@
             </svg>
             <h1>Lチカのつづき</h1>
           </div>
-          <p class="subtitle">気分・予算・持ち物・詰まり具合から、作るもの、買うもの、配線、コード、次の一手までつなぎます。</p>
+          <p class="subtitle">はじめの一歩のその先まで伴走するAIエージェント。気分・予算・持ち物・詰まり具合から、作るもの、買うもの、配線、コード、次の一手までつなぎます。</p>
         </div>
         <div class="status">
           <span class="dot" id="dot"></span>
@@ -1186,6 +1187,8 @@
       const runButton = document.querySelector("#runButton");
       const dot = document.querySelector("#dot");
       const helpButton = document.querySelector("#helpButton");
+      const splashOverlay = document.querySelector("#splashOverlay");
+      const splashSkipButton = document.querySelector("#splashSkipButton");
       const guideOverlay = document.querySelector("#guideOverlay");
       const guideCard = document.querySelector("#guideCard");
       const guideCursor = document.querySelector("#guideCursor");
@@ -1207,6 +1210,21 @@
 
       function setProgress(text) {
         progress.textContent = text;
+      }
+
+      function closeSplash() {
+        if (!splashOverlay || splashOverlay.classList.contains("hidden")) return;
+        splashOverlay.classList.add("hiding");
+        document.body.classList.remove("splash-active");
+        window.setTimeout(() => {
+          splashOverlay.classList.add("hidden");
+        }, 520);
+      }
+
+      function startSplashTimer() {
+        if (!splashOverlay) return;
+        document.body.classList.add("splash-active");
+        window.setTimeout(closeSplash, 3000);
       }
 
       function startGuide() {
@@ -1690,6 +1708,9 @@
         };
         return map[board] || "esp32_default";
       }
+
+      splashSkipButton?.addEventListener("click", closeSplash);
+      startSplashTimer();
 
       helpButton.addEventListener("click", startGuide);
       guideCloseButton.addEventListener("click", closeGuide);
