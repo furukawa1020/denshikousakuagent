@@ -1102,6 +1102,8 @@
         selectedProject: "desk_pet",
         latest: null,
         latestQuestion: "",
+        lastAnswer: "",
+        lastAnsweredQuestion: "",
         guideStep: 0,
         activeGuideTarget: null,
       };
@@ -1449,6 +1451,7 @@
                 <button class="chip small answer-chip" type="button" data-answer="はい">はい</button>
                 <button class="chip small answer-chip" type="button" data-answer="いいえ">いいえ</button>
                 <button class="chip small answer-chip" type="button" data-answer="分からない">分からない</button>
+                <button class="chip small answer-chip" type="button" data-answer="分からないのでスターター構成で進めたい">分からないので次へ</button>
                 <button class="chip small answer-chip" type="button" data-answer="写真で確認したい">写真で確認したい</button>
               </div>
               <button class="primary answer-submit" type="button" id="answerButton">回答して次へ</button>
@@ -1502,17 +1505,64 @@
         }
 
         const question = state.latestQuestion || state.latest?.tutorial?.tutorial?.nextQuestion || "次の質問";
+        const structuredMessage = applyAnswerToStructuredFields(question, answer);
         const baseText = intent.value.trim();
-        const addition = `次の質問: ${question}\n回答: ${answer}`;
+        const addition = `次の質問: ${question}\n回答: ${answer}${structuredMessage ? `\n反映: ${structuredMessage}` : ""}`;
         intent.value = baseText ? `${baseText}\n\n${addition}` : addition;
-        stage.value = nextStageForAnswer(stage.value, answer);
+        state.lastAnswer = answer;
+        state.lastAnsweredQuestion = question;
+        stage.value = nextStageForAnswer(stage.value, answer, question);
         box.value = "";
-        setProgress("回答を反映して、次の手順を生成しています。");
+        setProgress(structuredMessage || "回答を反映して、次の手順を生成しています。");
         run();
       }
 
-      function nextStageForAnswer(currentStage, answer) {
+      function applyAnswerToStructuredFields(question, answer) {
+        if (isInventoryQuestion(question)) {
+          const inventory = document.querySelector("#inventory");
+          if (isUnknownAnswer(answer)) {
+            inventory.value = "不明。手元の部品はまだ確認できないので、初心者向けスターター構成として必要部品込みで進めたい。";
+            return "部品が不明でも止めずに、スターター構成として次へ進みます。";
+          }
+          inventory.value = answer;
+          return "回答を「持っている部品」欄へ反映しました。";
+        }
+
+        if (isBoardQuestion(question)) {
+          const board = document.querySelector("#board");
+          const normalized = answer.toLowerCase();
+          if (normalized.includes("arduino")) board.value = "arduino_uno";
+          else if (normalized.includes("m5")) board.value = "m5stack";
+          else if (normalized.includes("pico")) board.value = "pico";
+          else if (normalized.includes("esp32")) board.value = "esp32";
+          return "回答をボード設定へ反映しました。";
+        }
+
+        return "";
+      }
+
+      function isInventoryQuestion(question) {
+        return ["部品", "手元", "持っている", "所持", "inventory"].some((word) => question.includes(word));
+      }
+
+      function isBoardQuestion(question) {
+        return ["ボード", "Arduino", "ESP32", "M5Stack", "Pico"].some((word) => question.includes(word));
+      }
+
+      function isUnknownAnswer(answer) {
         const normalized = answer.replace(/\s/g, "").toLowerCase();
+        return ["分からない", "わからない", "不明", "知らない", "不安", "unknown", "スターター"].some((word) => normalized.includes(word));
+      }
+
+      function nextStageForAnswer(currentStage, answer, question = "") {
+        const normalized = answer.replace(/\s/g, "").toLowerCase();
+        if (isInventoryQuestion(question)) {
+          return "minimal_circuit";
+        }
+        if (isBoardQuestion(question)) {
+          return currentStage === "orient" ? "parts_check" : "minimal_circuit";
+        }
+
         const needsDebug = ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
           normalized.includes(word)
         );
