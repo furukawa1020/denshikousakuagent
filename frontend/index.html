@@ -34,6 +34,10 @@
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
+      body.splash-active {
+        overflow: hidden;
+      }
+
       main {
         max-width: 1360px;
         margin: 0 auto;
@@ -95,6 +99,31 @@
 
       .dot.ready {
         background: var(--accent);
+      }
+
+      .brand-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .logo-mark {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 auto;
+      }
+
+      .splash-logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 11px;
+        color: #0f4f4a;
+        font-weight: 900;
+      }
+
+      .splash-logo .logo-mark {
+        width: 64px;
+        height: 64px;
       }
 
       .layout {
@@ -208,6 +237,147 @@
       button:disabled {
         opacity: 0.65;
         cursor: wait;
+      }
+
+      .splash-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2200;
+        display: grid;
+        place-items: center;
+        padding: 22px;
+        background:
+          radial-gradient(circle at 18% 16%, rgba(255, 214, 102, 0.42), transparent 28%),
+          radial-gradient(circle at 84% 26%, rgba(125, 211, 252, 0.34), transparent 30%),
+          linear-gradient(135deg, #f7faf3 0%, #e7f2ef 100%);
+        transition: opacity 0.48s ease, visibility 0.48s ease;
+      }
+
+      .splash-overlay.hiding {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .splash-overlay.hidden {
+        display: none;
+      }
+
+      .splash-stage {
+        width: min(940px, calc(100vw - 32px));
+        display: grid;
+        grid-template-columns: minmax(280px, 0.95fr) minmax(280px, 1.05fr);
+        gap: 24px;
+        align-items: center;
+      }
+
+      .splash-thumb {
+        aspect-ratio: 4 / 3;
+        border: 1px solid #cfded9;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fffdf5;
+        box-shadow: 0 22px 64px rgba(17, 38, 38, 0.18);
+      }
+
+      .splash-art {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .splash-copy {
+        display: grid;
+        gap: 13px;
+      }
+
+      .splash-kicker {
+        color: #0f4f4a;
+        font-size: 13px;
+        font-weight: 900;
+      }
+
+      .splash-copy h2 {
+        font-size: clamp(36px, 5vw, 64px);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .splash-copy p {
+        max-width: 560px;
+        color: #405256;
+        font-size: 17px;
+        line-height: 1.75;
+      }
+
+      .splash-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .splash-tags span {
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid #d5dfdb;
+        padding: 7px 10px;
+        color: #34464a;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .splash-skip {
+        width: fit-content;
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        padding: 11px 16px;
+        font-weight: 850;
+        cursor: pointer;
+      }
+
+      .splash-float-a {
+        animation: splashFloatA 2.8s ease-in-out infinite;
+      }
+
+      .splash-float-b {
+        animation: splashFloatB 3.2s ease-in-out infinite;
+      }
+
+      .splash-blink {
+        animation: splashBlink 1.6s ease-in-out infinite;
+      }
+
+      @keyframes splashFloatA {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-7px);
+        }
+      }
+
+      @keyframes splashFloatB {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-2deg);
+        }
+        50% {
+          transform: translateY(6px) rotate(2deg);
+        }
+      }
+
+      @keyframes splashBlink {
+        0%,
+        45%,
+        100% {
+          opacity: 1;
+        }
+        58% {
+          opacity: 0.35;
+        }
       }
 
       .help-button {
@@ -605,6 +775,15 @@
           width: 100%;
         }
 
+        .splash-stage {
+          grid-template-columns: 1fr;
+          gap: 16px;
+        }
+
+        .splash-copy h2 {
+          font-size: 38px;
+        }
+
         .help-button {
           right: 16px;
           bottom: 16px;
@@ -628,10 +807,133 @@
     </style>
   </head>
   <body>
+    <div class="splash-overlay" id="splashOverlay" aria-label="Lチカのつづき 起動画面">
+      <div class="splash-stage">
+        <div class="splash-thumb" aria-hidden="true">
+          <svg class="splash-art" viewBox="0 0 720 540" role="img">
+            <rect width="720" height="540" fill="#fff9e8" />
+            <path d="M0 391 C94 338 149 417 238 366 C346 303 394 408 511 348 C609 298 646 346 720 300 L720 540 L0 540 Z" fill="#e4f3ef" />
+            <path d="M42 96 C87 56 147 51 187 82 C242 124 308 56 369 86 C429 116 442 183 512 169 C586 154 641 196 657 255 C681 347 573 382 491 350 C431 327 402 394 332 378 C262 363 248 300 184 317 C101 339 28 289 29 211 C30 166 18 118 42 96 Z" fill="#f9efd0" opacity="0.78" />
+
+            <g class="splash-float-b">
+              <circle cx="126" cy="309" r="39" fill="#ffe7ca" stroke="#5f4638" stroke-width="5" />
+              <path d="M91 303 C94 259 124 243 159 269 C175 283 176 306 172 327 C154 311 126 317 91 303 Z" fill="#594032" />
+              <circle cx="112" cy="312" r="4" fill="#33251f" />
+              <circle cx="142" cy="312" r="4" fill="#33251f" />
+              <path d="M119 331 C128 337 137 336 145 329" fill="none" stroke="#8b4a3d" stroke-width="4" stroke-linecap="round" />
+              <circle cx="102" cy="326" r="7" fill="#ffb3a5" opacity="0.75" />
+              <circle cx="154" cy="326" r="7" fill="#ffb3a5" opacity="0.75" />
+              <path d="M85 371 C98 342 158 342 172 371 L184 451 H73 Z" fill="#8fd3ff" stroke="#456474" stroke-width="5" />
+              <path d="M173 388 C213 354 232 346 263 343" fill="none" stroke="#ffe7ca" stroke-width="17" stroke-linecap="round" />
+              <path d="M178 388 C215 357 236 350 264 347" fill="none" stroke="#5f4638" stroke-width="4" stroke-linecap="round" />
+              <circle cx="267" cy="345" r="8" fill="#ffe7ca" stroke="#5f4638" stroke-width="4" />
+            </g>
+
+            <g class="splash-float-a">
+              <rect x="162" y="160" width="316" height="205" rx="20" fill="#0f766e" />
+              <rect x="184" y="181" width="272" height="163" rx="15" fill="#159083" />
+              <circle cx="213" cy="211" r="11" fill="#c8f4e7" />
+              <circle cx="419" cy="216" r="11" fill="#c8f4e7" />
+              <circle cx="220" cy="312" r="11" fill="#c8f4e7" />
+              <circle cx="420" cy="311" r="11" fill="#c8f4e7" />
+              <path d="M234 213 H299 C318 213 318 245 337 245 H396" fill="none" stroke="#d9ffe9" stroke-width="8" stroke-linecap="round" />
+              <path d="M233 311 H277 C297 311 295 276 318 276 H395" fill="none" stroke="#ffe59d" stroke-width="8" stroke-linecap="round" />
+              <path d="M257 246 H291 C310 246 308 213 329 213 H367" fill="none" stroke="#9bd7ff" stroke-width="7" stroke-linecap="round" />
+              <rect x="292" y="248" width="59" height="49" rx="9" fill="#132024" />
+              <path d="M279 242 H365 M279 303 H365" stroke="#132024" stroke-width="6" stroke-linecap="round" stroke-dasharray="3 9" />
+              <circle class="splash-blink" cx="383" cy="275" r="15" fill="#ffd86b" />
+              <circle cx="383" cy="275" r="30" fill="#ffd86b" opacity="0.25" />
+            </g>
+
+            <g class="splash-float-b">
+              <path d="M469 358 L602 214 C614 202 634 204 645 218 L661 238 L505 397 Z" fill="#f97361" />
+              <path d="M594 208 L650 263" stroke="#132024" stroke-width="12" stroke-linecap="round" />
+              <path d="M458 371 L432 397 L492 408 L505 397 Z" fill="#334155" />
+              <path d="M429 397 L407 407" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" />
+              <circle cx="516" cy="344" r="11" fill="#fff4c7" />
+            </g>
+
+            <g class="splash-float-a">
+              <circle cx="558" cy="320" r="36" fill="#ffe1bd" stroke="#5f4638" stroke-width="5" />
+              <path d="M525 306 C531 270 575 268 595 296 C587 288 574 290 562 294 C549 298 539 310 525 306 Z" fill="#4b382e" />
+              <circle cx="546" cy="322" r="4" fill="#33251f" />
+              <circle cx="574" cy="322" r="4" fill="#33251f" />
+              <path d="M551 338 C560 345 570 343 577 337" fill="none" stroke="#8b4a3d" stroke-width="4" stroke-linecap="round" />
+              <circle cx="535" cy="334" r="7" fill="#ffb3a5" opacity="0.75" />
+              <circle cx="586" cy="334" r="7" fill="#ffb3a5" opacity="0.75" />
+              <path d="M517 381 C530 350 589 350 606 381 L620 452 H501 Z" fill="#ffd86b" stroke="#715d2d" stroke-width="5" />
+              <path d="M512 392 C476 365 458 349 434 326" fill="none" stroke="#ffe1bd" stroke-width="17" stroke-linecap="round" />
+              <path d="M512 392 C477 365 459 349 435 327" fill="none" stroke="#5f4638" stroke-width="4" stroke-linecap="round" />
+              <circle cx="431" cy="324" r="8" fill="#ffe1bd" stroke="#5f4638" stroke-width="4" />
+            </g>
+
+            <path d="M92 384 C134 311 194 441 250 372 C291 322 316 384 362 351" fill="none" stroke="#2f80ed" stroke-width="12" stroke-linecap="round" />
+            <path d="M84 411 C147 377 165 477 246 432 C306 398 330 455 393 417" fill="none" stroke="#ffb020" stroke-width="10" stroke-linecap="round" />
+            <path d="M451 132 C504 79 558 158 612 111" fill="none" stroke="#ef5da8" stroke-width="11" stroke-linecap="round" />
+
+            <g>
+              <rect x="72" y="166" width="58" height="92" rx="12" fill="#ffffff" stroke="#d9dfdc" stroke-width="5" />
+              <circle class="splash-blink" cx="101" cy="194" r="12" fill="#ef4444" />
+              <circle cx="101" cy="232" r="12" fill="#22c55e" />
+              <path d="M101 258 V300" stroke="#64748b" stroke-width="7" stroke-linecap="round" />
+            </g>
+
+            <g class="splash-float-a">
+              <rect x="507" y="80" width="94" height="62" rx="8" fill="#fff" stroke="#d9dfdc" stroke-width="5" />
+              <path d="M526 101 H580 M526 121 H561" stroke="#0f766e" stroke-width="7" stroke-linecap="round" />
+              <circle cx="503" cy="79" r="11" fill="#ffd86b" />
+            </g>
+
+            <g>
+              <rect x="116" y="72" width="122" height="56" rx="10" fill="#fff6b8" stroke="#eadf91" stroke-width="5" />
+              <path d="M139 94 H213 M139 112 H191" stroke="#a16207" stroke-width="6" stroke-linecap="round" />
+              <path d="M244 123 L265 150" stroke="#a16207" stroke-width="5" stroke-linecap="round" />
+            </g>
+
+            <circle cx="605" cy="388" r="25" fill="#dbeafe" stroke="#60a5fa" stroke-width="6" />
+            <path d="M592 387 H618 M605 374 V401" stroke="#2563eb" stroke-width="6" stroke-linecap="round" />
+            <path d="M69 462 H649" stroke="#d0ddd8" stroke-width="8" stroke-linecap="round" />
+          </svg>
+        </div>
+
+        <section class="splash-copy">
+          <div class="splash-logo">
+            <svg class="logo-mark" viewBox="0 0 72 72" role="img" aria-label="Lチカのつづき ロゴ">
+              <rect x="6" y="6" width="60" height="60" rx="17" fill="#e1f3f0" stroke="#0f766e" stroke-width="4" />
+              <path d="M20 44 C27 25 43 25 50 44" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round" />
+              <circle cx="36" cy="28" r="10" fill="#ffd86b" stroke="#a16207" stroke-width="4" />
+              <path d="M28 52 H44" stroke="#0f766e" stroke-width="6" stroke-linecap="round" />
+              <path d="M25 16 L20 9 M36 14 V6 M47 16 L52 9" stroke="#f97361" stroke-width="4" stroke-linecap="round" />
+            </svg>
+            <span>MakerGraph AI</span>
+          </div>
+          <span class="splash-kicker">はじめての電子工作エージェント</span>
+          <h2>Lチカのつづき</h2>
+          <p>作りたいものがまだふわっとしていても、部品、予算、回路、コード、次の一手まで一緒に組み立てます。</p>
+          <div class="splash-tags">
+            <span>作品発見</span>
+            <span>部品と予算</span>
+            <span>配線チェック</span>
+            <span>デバッグ伴走</span>
+          </div>
+          <button class="splash-skip" type="button" id="splashSkipButton">すぐ始める</button>
+        </section>
+      </div>
+    </div>
+
     <main>
       <header>
         <div>
-          <h1>Lチカのつづき</h1>
+          <div class="brand-title">
+            <svg class="logo-mark" viewBox="0 0 72 72" role="img" aria-label="Lチカのつづき ロゴ">
+              <rect x="6" y="6" width="60" height="60" rx="17" fill="#e1f3f0" stroke="#0f766e" stroke-width="4" />
+              <path d="M20 44 C27 25 43 25 50 44" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round" />
+              <circle cx="36" cy="28" r="10" fill="#ffd86b" stroke="#a16207" stroke-width="4" />
+              <path d="M28 52 H44" stroke="#0f766e" stroke-width="6" stroke-linecap="round" />
+              <path d="M25 16 L20 9 M36 14 V6 M47 16 L52 9" stroke="#f97361" stroke-width="4" stroke-linecap="round" />
+            </svg>
+            <h1>Lチカのつづき</h1>
+          </div>
           <p class="subtitle">気分・予算・持ち物・詰まり具合から、作るもの、買うもの、配線、コード、次の一手までつなぎます。</p>
         </div>
         <div class="status">
