@@ -303,6 +303,61 @@
         text-align: right;
       }
 
+      .answer-panel {
+        display: grid;
+        gap: 9px;
+        margin-top: 12px;
+        padding: 12px;
+        border-left: 4px solid var(--accent);
+        border-radius: 8px;
+        background: #f3fbf9;
+      }
+
+      .section-label {
+        color: #0f4f4a;
+        font-size: 12px;
+        font-weight: 850;
+      }
+
+      .answer-question {
+        color: var(--ink);
+        font-weight: 850;
+        line-height: 1.55;
+      }
+
+      .answer-box {
+        min-height: 72px;
+        background: #fff;
+      }
+
+      .answer-tools {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .answer-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .chip.small {
+        padding: 6px 9px;
+        font-size: 13px;
+      }
+
+      .answer-submit {
+        white-space: nowrap;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
       .timeline {
         display: grid;
         gap: 8px;
@@ -359,6 +414,14 @@
         .two-col,
         .cards {
           grid-template-columns: 1fr;
+        }
+
+        .answer-tools {
+          grid-template-columns: 1fr;
+        }
+
+        .answer-submit {
+          width: 100%;
         }
 
         .status {
@@ -515,6 +578,7 @@
         selectedEntry: "かわいいものを作りたい",
         selectedProject: "desk_pet",
         latest: null,
+        latestQuestion: "",
       };
 
       const statusText = document.querySelector("#statusText");
@@ -605,6 +669,8 @@
           target.textContent = "チュートリアルを生成できませんでした。";
           return;
         }
+        const question = tutorial.nextQuestion || "今見えている状態を一言で教えてください。";
+        state.latestQuestion = question;
         target.innerHTML = `
           <div class="meta">
             <span class="pill good">${escapeHtml(result.stage?.label || "")}</span>
@@ -619,6 +685,21 @@
             <div><span>次の質問</span><strong>${escapeHtml(tutorial.nextQuestion)}</strong></div>
             <div><span>期待する反応</span><strong>${escapeHtml(tutorial.expectedSignal)}</strong></div>
           </div>
+          <div class="answer-panel">
+            <span class="section-label">ここに答える</span>
+            <p class="answer-question">${escapeHtml(question)}</p>
+            <textarea id="answerBox" class="answer-box" placeholder="例: LEDはまだ光っていない / COMポートは見えている / 分からない"></textarea>
+            <div class="answer-tools">
+              <div class="answer-chips">
+                <button class="chip small answer-chip" type="button" data-answer="はい">はい</button>
+                <button class="chip small answer-chip" type="button" data-answer="いいえ">いいえ</button>
+                <button class="chip small answer-chip" type="button" data-answer="分からない">分からない</button>
+                <button class="chip small answer-chip" type="button" data-answer="写真で確認したい">写真で確認したい</button>
+              </div>
+              <button class="primary answer-submit" type="button" id="answerButton">回答して次へ</button>
+            </div>
+            <p class="hint">いま見えている状態をそのまま書けば大丈夫です。回答は左の「今の状態」に追記され、次の手順を作り直します。</p>
+          </div>
           <ul>${(tutorial.checklist || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
           <div class="timeline">
             ${(tutorial.runbook || []).map((step) => `
@@ -632,6 +713,62 @@
             `).join("")}
           </div>
         `;
+        wireTutorialAnswerControls();
+      }
+
+      function wireTutorialAnswerControls() {
+        const box = document.querySelector("#answerBox");
+        const button = document.querySelector("#answerButton");
+        if (!box || !button) return;
+
+        button.addEventListener("click", answerTutorialQuestion);
+        box.addEventListener("keydown", (event) => {
+          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+            answerTutorialQuestion();
+          }
+        });
+        document.querySelectorAll(".answer-chip").forEach((chip) => {
+          chip.addEventListener("click", () => {
+            box.value = chip.dataset.answer || "";
+            box.focus();
+          });
+        });
+      }
+
+      function answerTutorialQuestion() {
+        const box = document.querySelector("#answerBox");
+        const intent = document.querySelector("#intent");
+        const stage = document.querySelector("#stage");
+        const answer = box?.value.trim() || "";
+        if (!answer) {
+          setProgress("次の質問への答えを1行で入れてください。分からない場合は「分からない」で進められます。");
+          box?.focus();
+          return;
+        }
+
+        const question = state.latestQuestion || state.latest?.tutorial?.tutorial?.nextQuestion || "次の質問";
+        const baseText = intent.value.trim();
+        const addition = `次の質問: ${question}\n回答: ${answer}`;
+        intent.value = baseText ? `${baseText}\n\n${addition}` : addition;
+        stage.value = nextStageForAnswer(stage.value, answer);
+        box.value = "";
+        setProgress("回答を反映して、次の手順を生成しています。");
+        run();
+      }
+
+      function nextStageForAnswer(currentStage, answer) {
+        const normalized = answer.replace(/\s/g, "").toLowerCase();
+        const needsDebug = ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
+          normalized.includes(word)
+        );
+        if (needsDebug && currentStage !== "orient" && currentStage !== "parts_check") {
+          return "debug_triage";
+        }
+
+        const order = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "extension"];
+        const index = order.indexOf(currentStage);
+        if (index < 0 || index >= order.length - 1) return currentStage;
+        return order[index + 1];
       }
 
       function renderNeural(result) {
