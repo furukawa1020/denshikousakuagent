@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import time
 from pathlib import Path
 
 import torch
@@ -37,14 +38,18 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    started = time.perf_counter()
     args = parse_args()
     set_seed(args.seed)
+    print(json.dumps({"event": "start", "data": args.data, "output": args.output, "epochs": args.epochs}, ensure_ascii=False), flush=True)
     data_path = Path(args.data)
     if not data_path.exists():
         write_jsonl(data_path, generate_records(args.samples, seed=args.seed))
     records = load_jsonl(data_path)
-    tokenizer = MakerTokenizer()
+    print(json.dumps({"event": "data_loaded", "records": len(records), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
+    tokenizer = MakerTokenizer(domain_terms=[])
     tokenizer.build_vocab(collect_texts(records), min_freq=1, max_vocab_size=22000)
+    print(json.dumps({"event": "vocab_built", "vocab_size": len(tokenizer.vocab), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
     config = TutorialResponseConfig(
         vocab_size=len(tokenizer.vocab),
         max_source_length=args.max_source_length,
@@ -75,16 +80,17 @@ def main() -> None:
         "records": len(records),
         "vocab_size": len(tokenizer.vocab),
         "parameters": count_parameters(model),
-    }, ensure_ascii=False, indent=2))
+        "elapsed_sec": round(time.perf_counter() - started, 2),
+    }, ensure_ascii=False, indent=2), flush=True)
 
     best_valid = float("inf")
     history: list[dict[str, float]] = []
     for epoch in range(1, args.epochs + 1):
-        train_metrics = run_epoch(model, train_loader, optimizer, scaler, device, train=True, amp=args.amp)
-        valid_metrics = run_epoch(model, valid_loader, optimizer, scaler, device, train=False, amp=False)
+        train_metrics = run_epoch(model, train_loader, optimizer, scaler, device, train=True, amp=args.amp, phase="train", epoch=epoch)
+        valid_metrics = run_epoch(model, valid_loader, optimizer, scaler, device, train=False, amp=False, phase="valid", epoch=epoch)
         row = {"epoch": epoch, **prefix("train", train_metrics), **prefix("valid", valid_metrics)}
         history.append(row)
-        print(json.dumps(row, ensure_ascii=False))
+        print(json.dumps({"event": "epoch_complete", **row}, ensure_ascii=False), flush=True)
         if valid_metrics["loss"] <= best_valid:
             best_valid = valid_metrics["loss"]
             save_checkpoint(output_dir / "best.pt", model, config, epoch, valid_metrics)
@@ -100,6 +106,8 @@ def run_epoch(
     device: torch.device,
     train: bool,
     amp: bool,
+    phase: str,
+    epoch: int,
 ) -> dict[str, float]:
     model.train(train)
     criterion = nn.CrossEntropyLoss(ignore_index=model.config.pad_token_id)
@@ -127,6 +135,22 @@ def run_epoch(
         total_tokens += int(mask.sum().detach().cpu())
         total_loss += float(loss.detach().cpu())
         steps += 1
+        if steps == 1 or steps % 100 == 0 or steps == len(loader):
+            print(
+                json.dumps(
+                    {
+                        "event": "batch_progress",
+                        "epoch": epoch,
+                        "phase": phase,
+                        "step": steps,
+                        "total_steps": len(loader),
+                        "loss": total_loss / max(1, steps),
+                        "token_acc": total_correct / max(1, total_tokens),
+                    },
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
     return {"loss": total_loss / max(1, steps), "token_acc": total_correct / max(1, total_tokens)}
 
 
@@ -157,4 +181,3 @@ def prefix(name: str, metrics: dict[str, float]) -> dict[str, float]:
 
 if __name__ == "__main__":
     main()
-
