@@ -515,10 +515,10 @@ def topic_for_question(question: str) -> str:
         return "resistor"
     if "LED" in question:
         return "led"
-    if any(token in question for token in ["ボード", "マイコン", "Arduino", "ESP32", "M5Stack", "Pico"]):
-        return "board"
     if any(token in question for token in ["ポート", "USB", "書き込み", "ケーブル"]):
         return "usb_port"
+    if any(token in question for token in ["ボード", "マイコン", "Arduino", "ESP32", "M5Stack", "Pico"]):
+        return "board"
     if any(token in question for token in ["シリアル", "値", "起動メッセージ", "Serial"]):
         return "serial"
     if any(token in question for token in ["見た目", "音", "センサー追加", "外装", "ログ保存"]):
