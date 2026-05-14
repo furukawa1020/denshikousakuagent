@@ -1324,9 +1324,12 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     }
     neural = tutorial_response_inference(neural_payload)
     if neural.get("available"):
-        neural_stage = str(neural.get("nextStage") or next_stage)
-        if neural_stage not in STAGE_ORDER:
-            neural_stage = next_stage
+        neural_stage = merge_tutorial_stage(
+            current_stage=current_stage,
+            model_stage=str(neural.get("nextStage") or ""),
+            fallback_stage=next_stage,
+            kind=kind,
+        )
         preview_payload = {
             **payload,
             "projectId": project.id,
@@ -1375,6 +1378,12 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         ]).strip(),
     }
     tutorial = tutorial_agent_inference(preview_payload)
+    resolved_stage = merge_tutorial_stage(
+        current_stage=current_stage,
+        model_stage="",
+        fallback_stage=next_stage,
+        kind=kind,
+    )
     return {
         "available": True,
         "model": "TutorialFreeResponseSynthesizer",
@@ -1387,7 +1396,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "title": reply["title"],
         "body": reply["body"],
         "nextInstruction": reply["nextInstruction"],
-        "nextStage": next_stage,
+        "nextStage": resolved_stage,
         "suggestedChips": reply["suggestedChips"],
         "confidence": confidence_for_free_answer(kind, question, answer),
         "tutorialPreview": tutorial if tutorial.get("available") else None,
