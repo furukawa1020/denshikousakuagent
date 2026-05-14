@@ -24,6 +24,10 @@ SPECIAL_TOKENS = [
     "<safety>",
 ]
 
+FAST_TOKEN_RE = re.compile(r"<[^>]+>|[a-zA-Z_][a-zA-Z0-9_+\-]*|\d+(?:,\d{3})*(?:\.\d+)?|\S")
+ASCII_RE = re.compile(r"[a-zA-Z_][a-zA-Z0-9_+\-]*\Z")
+NUMBER_RE = re.compile(r"\d+(?:,\d{3})*(?:\.\d+)?\Z")
+
 
 class MakerTokenizer:
     """Small domain tokenizer for Japanese maker text.
@@ -34,7 +38,14 @@ class MakerTokenizer:
     """
 
     def __init__(self, vocab: dict[str, int] | None = None, domain_terms: list[str] | None = None) -> None:
-        self.domain_terms = sorted(domain_terms or DEFAULT_DOMAIN_TERMS, key=len, reverse=True)
+        terms = DEFAULT_DOMAIN_TERMS if domain_terms is None else domain_terms
+        self.domain_terms = sorted(terms, key=len, reverse=True)
+        self.domain_terms_by_first: dict[str, list[tuple[str, str]]] = {}
+        for term in self.domain_terms:
+            lowered = term.lower()
+            if not lowered:
+                continue
+            self.domain_terms_by_first.setdefault(lowered[0], []).append((term, lowered))
         self.vocab = vocab or {token: index for index, token in enumerate(SPECIAL_TOKENS)}
         self.id_to_token = {index: token for token, index in self.vocab.items()}
 
@@ -48,6 +59,20 @@ class MakerTokenizer:
 
     def tokenize(self, text: str) -> list[str]:
         text = normalize_text(text)
+        if not self.domain_terms:
+            tokens: list[str] = []
+            for match in FAST_TOKEN_RE.finditer(text):
+                token = match.group(0)
+                if token in SPECIAL_TOKENS:
+                    tokens.append(token)
+                elif ASCII_RE.match(token):
+                    tokens.append(token.lower())
+                elif NUMBER_RE.match(token):
+                    tokens.append("<num>")
+                else:
+                    tokens.append(token)
+            return tokens
+
         tokens: list[str] = []
         index = 0
         while index < len(text):
@@ -68,8 +93,8 @@ class MakerTokenizer:
 
             matched = None
             lowered = text[index:].lower()
-            for term in self.domain_terms:
-                if lowered.startswith(term.lower()):
+            for term, lowered_term in self.domain_terms_by_first.get(lowered[:1], []):
+                if lowered.startswith(lowered_term):
                     matched = term
                     break
             if matched:
