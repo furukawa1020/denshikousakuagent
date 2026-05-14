@@ -10,13 +10,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, tutorial_response_inference, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
+STAGE_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "debug_triage", "standard_build", "enclosure", "extension", "completion_log"]
 
 
 @dataclass(frozen=True)
@@ -1311,6 +1312,56 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     kind = classify_free_answer(answer)
     next_stage = next_stage_from_free_answer(question, answer, current_stage, kind)
     reply = compose_tutorial_reply(project, question, answer, current_stage, next_stage, kind, payload)
+
+    neural_payload = {
+        **payload,
+        "projectId": project.id,
+        "projectTitle": project.title,
+        "question": question,
+        "answer": answer,
+        "currentStage": current_stage,
+    }
+    neural = tutorial_response_inference(neural_payload)
+    if neural.get("available"):
+        neural_stage = str(neural.get("nextStage") or next_stage)
+        if neural_stage not in STAGE_ORDER:
+            neural_stage = next_stage
+        preview_payload = {
+            **payload,
+            "projectId": project.id,
+            "currentStage": neural_stage,
+            "text": " ".join([
+                str(payload.get("text") or ""),
+                f"question: {question}",
+                f"answer: {answer}",
+                f"neuralStyle: {neural.get('kind')}",
+            ]).strip(),
+        }
+        tutorial = tutorial_agent_inference(preview_payload)
+        return {
+            "available": True,
+            "model": neural.get("model") or "TutorialResponseTransformer",
+            "modelDir": neural.get("modelDir"),
+            "mode": "deep_learning_free_response",
+            "projectId": project.id,
+            "question": question,
+            "answer": answer,
+            "interpreted": kind,
+            "kind": neural.get("kind") or reply["kind"],
+            "title": neural.get("title") or reply["title"],
+            "body": neural.get("body") or reply["body"],
+            "nextInstruction": neural.get("nextInstruction") or reply["nextInstruction"],
+            "nextStage": neural_stage,
+            "suggestedChips": reply["suggestedChips"],
+            "confidence": max(confidence_for_free_answer(kind, question, answer), 0.72),
+            "tutorialPreview": tutorial if tutorial.get("available") else None,
+            "neural": {
+                "device": neural.get("device"),
+                "metrics": neural.get("metrics"),
+                "generated": neural.get("generated"),
+            },
+        }
+
     preview_payload = {
         **payload,
         "projectId": project.id,
@@ -1380,10 +1431,10 @@ def looks_like_inventory(answer: str) -> bool:
 def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str) -> str:
     if is_inventory_question_text(question):
         return "minimal_circuit"
-    if is_board_question_text(question):
-        return "firmware_upload" if current_stage in {"firmware_upload", "observe_serial"} else "minimal_circuit"
     if is_gnd_question_text(question):
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
+    if is_board_question_text(question):
+        return "firmware_upload" if current_stage in {"firmware_upload", "observe_serial"} else "minimal_circuit"
     if "LED" in question or "led" in question.lower() or "抵抗" in question:
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
     if "シリアル" in question or "起動メッセージ" in question or "値" in question:
@@ -1412,15 +1463,15 @@ def compose_tutorial_reply(project: MakerProject, question: str, answer: str, cu
             return reply("warn", "部品が分からなくても進めます", "スターター構成として扱います。必要部品込みで見積もり、まずは最小回路から始めます。", "次はLED・抵抗・GNDだけの最小確認へ進みます。", ["スターターで進む", "写真で確認したい", "部品を後で直す"])
         return reply("good", "部品情報を受け取りました", "書いてくれた部品を所持品として扱います。不足分はBOM側で分けて出します。", "次はUSBを抜いた状態で、最小回路のGND共有を確認します。", ["GNDを確認する", "部品を追加する", "分からない"])
 
-    if is_board_question_text(question):
-        return reply("good", "ボード情報を受け取りました", "このボードに合わせてピン番号と確認コードを組み立てます。", "次は最小回路とコードのピン番号を合わせます。", ["ESP32で進む", "Arduinoで進む", "分からない"])
-
     if is_gnd_question_text(question):
         if kind == "confirmed":
             return reply("good", "GND共有はクリアです", "LED・センサー・ボードのGNDが同じ基準になっているので、次は確認コードを書き込む段階へ進めます。", "ボードとポートを確認して、シリアル出力つきのコードで動作を見ます。", ["コードを書き込む", "ピン番号を確認", "写真で見たい"])
         if kind == "photo_request":
             return reply("warn", "写真チェックに回しましょう", "真上から、ボードのGNDピンとブレッドボードのGND列が見えるように撮ると判断しやすいです。", "撮れたら配線写真チェックに進みます。今はUSBを抜いてください。", ["写真を撮る", "GNDをつなぎ直した", "分からない"])
         return reply("warn", "GNDを同じ列につなぎ直します", "USBを抜いてから、LEDのマイナス側、センサーのGND、ボードのGNDを同じGND列へつなぎます。ここが違うと全部動かないことがあります。", "つなぎ直せたら「つなぎ直した」と答えてください。", ["つなぎ直した", "写真で確認したい", "分からない"])
+
+    if is_board_question_text(question):
+        return reply("good", "ボード情報を受け取りました", "このボードに合わせてピン番号と確認コードを組み立てます。", "次は最小回路とコードのピン番号を合わせます。", ["ESP32で進む", "Arduinoで進む", "分からない"])
 
     if "LED" in question or "led" in question.lower():
         if kind == "confirmed":
