@@ -22,6 +22,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data", default="data/tutorial_response_training.jsonl")
     parser.add_argument("--output", default="runs/tutorial_response")
     parser.add_argument("--samples", type=int, default=14000)
+    parser.add_argument("--robust-ratio", type=float, default=0.7)
+    parser.add_argument("--regenerate", action="store_true")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=48)
     parser.add_argument("--lr", type=float, default=3e-4)
@@ -43,8 +45,8 @@ def main() -> None:
     set_seed(args.seed)
     print(json.dumps({"event": "start", "data": args.data, "output": args.output, "epochs": args.epochs}, ensure_ascii=False), flush=True)
     data_path = Path(args.data)
-    if not data_path.exists():
-        write_jsonl(data_path, generate_records(args.samples, seed=args.seed))
+    if args.regenerate or not data_path.exists():
+        write_jsonl(data_path, generate_records(args.samples, seed=args.seed, robust_ratio=args.robust_ratio))
     records = load_jsonl(data_path)
     print(json.dumps({"event": "data_loaded", "records": len(records), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
     tokenizer = MakerTokenizer(domain_terms=[])
