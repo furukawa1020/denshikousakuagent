@@ -1151,6 +1151,18 @@
         lastAgentReply: null,
         guideStep: 0,
         activeGuideTarget: null,
+        flow: {
+          inventory: false,
+          board: false,
+          gnd: false,
+          led: false,
+          resistor: false,
+          upload: false,
+          serial: false,
+          standard: false,
+          enclosure: false,
+          extension: false,
+        },
       };
 
       const GUIDE_STEPS = [
@@ -1554,6 +1566,9 @@
         const structuredMessage = applyAnswerToStructuredFields(question, answer);
         setProgress("回答を読んで、次の返答を作っています。");
         const agentReply = await requestAgentReply(question, answer, structuredMessage);
+        updateFlowProgress(question, answer, agentReply);
+        const resolvedStage = chooseProgressStage(stage.value, answer, question, agentReply);
+        agentReply.nextStage = resolvedStage;
         state.lastAgentReply = agentReply;
         renderInlineAgentReply(agentReply);
         const baseText = intent.value.trim();
@@ -1561,7 +1576,7 @@
         intent.value = baseText ? `${baseText}\n\n${addition}` : addition;
         state.lastAnswer = answer;
         state.lastAnsweredQuestion = question;
-        stage.value = agentReply.nextStage || nextStageForAnswer(stage.value, answer, question);
+        stage.value = resolvedStage;
         box.value = "";
         setProgress(agentReply.nextInstruction || structuredMessage || "回答を反映して、次の手順を生成しています。");
         run();

@@ -1366,10 +1366,16 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             },
         }
 
+    resolved_stage = merge_tutorial_stage(
+        current_stage=current_stage,
+        model_stage="",
+        fallback_stage=next_stage,
+        kind=kind,
+    )
     preview_payload = {
         **payload,
         "projectId": project.id,
-        "currentStage": next_stage,
+        "currentStage": resolved_stage,
         "text": " ".join([
             str(payload.get("text") or ""),
             f"question: {question}",
@@ -1378,12 +1384,6 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         ]).strip(),
     }
     tutorial = tutorial_agent_inference(preview_payload)
-    resolved_stage = merge_tutorial_stage(
-        current_stage=current_stage,
-        model_stage="",
-        fallback_stage=next_stage,
-        kind=kind,
-    )
     return {
         "available": True,
         "model": "TutorialFreeResponseSynthesizer",
@@ -1425,15 +1425,15 @@ def classify_free_answer(answer: str) -> str:
     normalized = normalize_answer(answer)
     if not normalized:
         return "empty"
-    if any(token in normalized for token in ["写真", "画像", "photo", "camera", "pic"]):
+    if any(token in normalized for token in ["写真", "画像", "撮影", "カメラ", "photo", "camera", "pic"]):
         return "photo_request"
-    if any(token in normalized for token in ["分からない", "わからない", "不明", "知らない", "自信ない", "unknown", "?" , "？"]):
+    if any(token in normalized for token in ["分からない", "わからない", "不明", "知らない", "自信ない", "自信がない", "不安", "unknown", "?" , "？"]):
         return "unknown"
-    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "できない", "出ない", "動かない", "光らない", "鳴らない", "止まる", "落ちる"]):
+    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "できない", "出ない", "動かない", "光らない", "鳴らない", "映らない", "止まる", "落ちる"]):
         return "problem_report"
-    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "ok", "yes", "はい", "同じ", "つながってる", "つないだ"]):
+    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "ok", "yes", "はい", "同じ", "つながってる", "つながっています", "つないだ", "入っています", "通っています", "大丈夫", "合っています", "見えています", "出ています"]):
         return "confirmed"
-    if any(token in normalized for token in ["いいえ", "no", "違う", "まだ", "無い", "ない", "入ってない", "つながってない"]):
+    if any(token in normalized for token in ["いいえ", "no", "違う", "まだ", "無い", "ない", "入ってない", "つながってない", "通ってない", "見えない", "出てない"]):
         return "negative"
     if looks_like_inventory(answer):
         return "inventory_report"
@@ -1457,18 +1457,23 @@ def looks_like_inventory(answer: str) -> bool:
 
 
 def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str) -> str:
+    lowered_question = question.lower()
     if is_inventory_question_text(question):
         return "minimal_circuit"
     if is_gnd_question_text(question):
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
     if is_board_question_text(question):
         return "firmware_upload" if current_stage in {"firmware_upload", "observe_serial"} else "minimal_circuit"
-    if "LED" in question or "led" in question.lower() or "抵抗" in question:
+    if "LED" in question or "led" in lowered_question or "抵抗" in question or "GPIO" in question:
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
-    if "シリアル" in question or "起動メッセージ" in question or "値" in question:
-        return "standard_build" if kind == "confirmed" else "debug_triage"
-    if "ポート" in question or "書き込" in question:
+    if "ポート" in question or "書き込" in question or "アップロード" in question or "COM" in question or "usb" in lowered_question:
         return "observe_serial" if kind == "confirmed" else "debug_triage"
+    if "シリアル" in question or "起動メッセージ" in question or "数値" in question or "値" in question or "serial" in lowered_question:
+        return "standard_build" if kind == "confirmed" else "debug_triage"
+    if "外装" in question or "ケース" in question or "固定" in question or "見た目" in question:
+        return "extension" if kind == "confirmed" else "enclosure"
+    if "拡張" in question or "ブザー" in question or "サーボ" in question or "音" in question or "ログ" in question or "完成" in question:
+        return "completion_log" if kind == "confirmed" else "extension"
     if kind in {"problem_report", "photo_request"}:
         return "debug_triage"
     if kind == "confirmed":
@@ -1548,15 +1553,15 @@ def confidence_for_free_answer(kind: str, question: str, answer: str) -> float:
 
 
 def is_inventory_question_text(question: str) -> bool:
-    return any(token in question for token in ["部品", "手元", "持っている", "所持"]) or "inventory" in question.lower()
+    return any(token in question for token in ["部品", "手元", "持っている", "所持", "一行"]) or "inventory" in question.lower()
 
 
 def is_board_question_text(question: str) -> bool:
-    return any(token in question for token in ["ボード", "Arduino", "ESP32", "M5Stack", "Pico"])
+    return any(token in question for token in ["ボード", "マイコン", "Arduino", "ESP32", "M5Stack", "Pico"])
 
 
 def is_gnd_question_text(question: str) -> bool:
-    return any(token in question for token in ["GND", "グランド", "ground"])
+    return any(token in question for token in ["GND", "gnd", "グランド", "マイナス列", "GND列", "ground"])
 
 
 def wiring_check(payload: dict[str, Any]) -> dict[str, Any]:
