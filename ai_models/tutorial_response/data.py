@@ -1042,23 +1042,23 @@ def topic_next_hint(topic: str, rng: random.Random) -> str:
 
 
 def topic_for_question(question: str) -> str:
-    if any(token in question for token in ["部品", "手元", "持っている", "所持", "机の上"]):
+    if any(token in question for token in ["部品", "手元", "持って", "所持", "机の上", "スターターキット"]):
         return "inventory"
-    if any(token in question for token in ["GND", "グランド", "マイナス列", "GNDライン"]):
+    if any(token in question for token in ["GND", "gnd", "グランド", "マイナス列", "GND列", "GNDライン"]):
         return "gnd"
-    if "抵抗" in question:
+    if any(token in question for token in ["抵抗", "220Ω", "330Ω", "直結"]):
         return "resistor"
     if "LED" in question:
         return "led"
-    if any(token in question for token in ["ポート", "USB", "書き込み", "ケーブル"]):
+    if any(token in question for token in ["ポート", "COM", "USB", "書き込", "アップロード", "エディタ", "ケーブル"]):
         return "usb_port"
-    if any(token in question for token in ["ボード", "マイコン", "Arduino", "ESP32", "M5Stack", "Pico"]):
+    if any(token in question for token in ["ボード", "マイコン", "基板", "Arduino", "ESP32", "M5Stack", "Pico"]):
         return "board"
-    if any(token in question for token in ["シリアル", "値", "起動メッセージ", "Serial"]):
+    if any(token in question for token in ["シリアル", "数値", "値", "起動メッセージ", "Serial", "Monitor"]):
         return "serial"
-    if any(token in question for token in ["見た目", "音", "センサー追加", "外装", "ログ保存"]):
+    if any(token in question for token in ["見た目", "音", "ブザー", "サーボ", "センサー追加", "外装", "ケース", "ログ", "完成", "拡張"]):
         return "extension"
-    if any(token in question for token in ["予算", "何円"]):
+    if any(token in question for token in ["予算", "何円", "いくら", "買える"]):
         return "budget"
     return "mood"
 
