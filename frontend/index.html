@@ -1812,12 +1812,14 @@
 
         let topicStage = localStage;
         if (positive) {
-          if (topic === "inventory" || topic === "board") topicStage = "minimal_circuit";
-          if (topic === "gnd" || topic === "led" || topic === "resistor") topicStage = "firmware_upload";
-          if (topic === "upload") topicStage = "observe_serial";
-          if (topic === "serial") topicStage = "standard_build";
-          if (topic === "enclosure") topicStage = "extension";
-          if (topic === "extension") topicStage = "completion_log";
+          if (currentStage === "extension") topicStage = "completion_log";
+          else if (currentStage === "enclosure") topicStage = "extension";
+          else if (topic === "inventory" || topic === "board") topicStage = "minimal_circuit";
+          else if (topic === "gnd" || topic === "led" || topic === "resistor") topicStage = "firmware_upload";
+          else if (topic === "upload") topicStage = "observe_serial";
+          else if (topic === "serial") topicStage = "standard_build";
+          else if (topic === "enclosure") topicStage = "extension";
+          else if (topic === "extension") topicStage = "completion_log";
         }
 
         return furthestProgressStage(currentStage, modelStage, topicStage);
@@ -1843,7 +1845,7 @@
         if (isUnknownAnswer(answer) || ["いいえ", "no", "違う", "まだ", "ない", "出ない", "見えない", "動かない", "光らない", "エラー"].some((word) => normalized.includes(word))) {
           return false;
         }
-        return isYesAnswer(answer) || agentReply.kind === "good" || ["大丈夫", "でき", "完了", "入っています", "つなが", "通って", "見えています", "出ています", "合っています"].some((word) =>
+        return isYesAnswer(answer) || agentReply.kind === "good" || ["大丈夫", "でき", "完了", "完成", "終わった", "入っています", "つなが", "通って", "見えています", "出ています", "合っています"].some((word) =>
           normalized.includes(word.replace(/\s/g, "").toLowerCase())
         );
       }
@@ -1863,7 +1865,7 @@
 
       function isYesAnswer(answer) {
         const normalized = answer.replace(/\s/g, "").toLowerCase();
-        return ["はい", "yes", "ok", "できた", "つなが", "同じ", "直した", "確認した", "通っています", "入っています", "大丈夫", "合っています", "見えています", "出ています"].some((word) => normalized.includes(word.replace(/\s/g, "").toLowerCase()));
+        return ["はい", "yes", "ok", "できた", "完成", "終わった", "つなが", "同じ", "直した", "確認した", "通っています", "入っています", "大丈夫", "合っています", "見えています", "出ています"].some((word) => normalized.includes(word.replace(/\s/g, "").toLowerCase()));
       }
 
       function isGndQuestion(question) {

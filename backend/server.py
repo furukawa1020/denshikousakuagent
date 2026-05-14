@@ -1431,7 +1431,7 @@ def classify_free_answer(answer: str) -> str:
         return "unknown"
     if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "できない", "出ない", "動かない", "光らない", "鳴らない", "映らない", "止まる", "落ちる"]):
         return "problem_report"
-    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "ok", "yes", "はい", "同じ", "つながってる", "つながっています", "つないだ", "入っています", "通っています", "大丈夫", "合っています", "見えています", "出ています"]):
+    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "完成", "終わった", "ok", "yes", "はい", "同じ", "つながってる", "つながっています", "つないだ", "入っています", "通っています", "大丈夫", "合っています", "見えています", "出ています"]):
         return "confirmed"
     if any(token in normalized for token in ["いいえ", "no", "違う", "まだ", "無い", "ない", "入ってない", "つながってない", "通ってない", "見えない", "出てない"]):
         return "negative"
@@ -1458,6 +1458,10 @@ def looks_like_inventory(answer: str) -> bool:
 
 def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str) -> str:
     lowered_question = question.lower()
+    if kind == "confirmed" and current_stage == "extension":
+        return "completion_log"
+    if kind == "confirmed" and current_stage == "enclosure":
+        return "extension"
     if is_inventory_question_text(question):
         return "minimal_circuit"
     if is_gnd_question_text(question):
