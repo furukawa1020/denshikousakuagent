@@ -1335,6 +1335,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             kind=kind,
         )
         presentation_kind = presentation_kind_for_free_answer(kind, str(neural.get("kind") or ""), reply["kind"])
+        use_neural_text = should_use_neural_tutorial_text(kind, str(neural.get("kind") or ""))
         preview_payload = {
             **payload,
             "projectId": project.id,
@@ -1343,7 +1344,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
                 str(payload.get("text") or ""),
                 f"question: {question}",
                 f"answer: {answer}",
-                f"neuralStyle: {neural.get('kind')}",
+                f"neuralStyle: {presentation_kind}",
             ]).strip(),
         }
         tutorial = tutorial_agent_inference(preview_payload)
@@ -1357,9 +1358,9 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             "answer": answer,
             "interpreted": kind,
             "kind": presentation_kind,
-            "title": neural.get("title") or reply["title"],
-            "body": neural.get("body") or reply["body"],
-            "nextInstruction": neural.get("nextInstruction") or reply["nextInstruction"],
+            "title": (neural.get("title") if use_neural_text else "") or reply["title"],
+            "body": (neural.get("body") if use_neural_text else "") or reply["body"],
+            "nextInstruction": (neural.get("nextInstruction") if use_neural_text else "") or reply["nextInstruction"],
             "nextStage": neural_stage,
             "suggestedChips": reply["suggestedChips"],
             "confidence": max(confidence_for_free_answer(kind, question, answer), 0.72),
@@ -1438,6 +1439,14 @@ def presentation_kind_for_free_answer(interpreted_kind: str, neural_kind: str, f
     if neural_kind in {"good", "warn", "info"}:
         return neural_kind
     return fallback_kind if fallback_kind in {"good", "warn", "info"} else "info"
+
+
+def should_use_neural_tutorial_text(interpreted_kind: str, neural_kind: str) -> bool:
+    if interpreted_kind in {"confirmed", "inventory_report", "board_report"} and neural_kind == "warn":
+        return False
+    if interpreted_kind in {"negative", "unknown", "problem_report", "photo_request"} and neural_kind == "good":
+        return False
+    return neural_kind in {"good", "warn", "info"}
 
 
 def log_tutorial_response_event(
