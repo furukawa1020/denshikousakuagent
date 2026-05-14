@@ -1403,6 +1403,24 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: str, kind: str) -> str:
+    current_stage = current_stage if current_stage in STAGE_ORDER else "orient"
+    model_stage = model_stage if model_stage in STAGE_ORDER else ""
+    fallback_stage = fallback_stage if fallback_stage in STAGE_ORDER else current_stage
+
+    if kind in {"negative", "problem_report", "photo_request"}:
+        return fallback_stage
+    if kind in {"unknown", "empty"}:
+        if fallback_stage == "debug_triage":
+            return fallback_stage
+        return current_stage if current_stage in {"minimal_circuit", "firmware_upload", "observe_serial"} else fallback_stage
+
+    ranked = [stage for stage in [current_stage, model_stage, fallback_stage] if stage in PROGRESS_STAGE_ORDER]
+    if not ranked:
+        return fallback_stage or current_stage
+    return max(ranked, key=lambda stage: PROGRESS_STAGE_ORDER.index(stage))
+
+
 def classify_free_answer(answer: str) -> str:
     normalized = normalize_answer(answer)
     if not normalized:
