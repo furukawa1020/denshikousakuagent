@@ -227,10 +227,409 @@ ANSWER_BANK = {
 }
 
 
-def generate_records(samples: int, seed: int = 131) -> list[dict[str, Any]]:
+ROBUST_CONTEXTS = {
+    "inventories": [
+        "ESP32 DevKit, LED 5個, 220Ω抵抗, ブレッドボード, ジャンパ線, USBケーブル",
+        "Arduino Uno, 赤色LED, 抵抗セット, 超音波センサーHC-SR04, ブザー",
+        "M5Stack Basic, Groveケーブル, 距離センサー, サーボ, 紙箱",
+        "Raspberry Pi Pico, LED, タクトスイッチ, OLEDっぽい小さい画面, 抵抗",
+        "部品名は分からない。青い基板、光るやつ、抵抗っぽい小さい部品、線がある",
+        "スターターキット一式。Arduino互換ボード、センサーいろいろ、ブレッドボード",
+        "ESP32とUSBケーブルだけはある。LEDと抵抗は買う必要があるかも",
+        "M5StickC, Grove温湿度センサー, 両面テープ, 小さい箱",
+    ],
+    "skills": [
+        "gnd_common:0.10, led_polarity:0.20, gpio:0.15, debugging:0.10",
+        "gnd_common:0.45, led_polarity:0.62, gpio:0.38, serial_monitor:0.22",
+        "gpio:0.55, resistor_usage:0.40, serial_monitor:0.52, project_decomposition:0.30",
+        "debugging:0.18, upload_error_reading:0.12, enclosure_design:0.05",
+        "",
+    ],
+    "previous": [
+        "",
+        "前回はLEDの向きを逆にしていて光らなかった",
+        "USBケーブルが充電専用で書き込めなかった",
+        "GNDを別の列に刺していてセンサー値が変わらなかった",
+        "抵抗なしでLEDをつなぎそうになったので止めた",
+        "シリアルモニタの速度が違って文字化けした",
+    ],
+}
+
+
+ROBUST_SCENARIOS: list[dict[str, Any]] = [
+    {
+        "topic": "inventory",
+        "stages": ["parts_check", "orient"],
+        "questions": [
+            "手元にある部品を、分かる範囲で一行で書けますか？",
+            "部品名があいまいでも大丈夫なので、机の上にあるものを並べてください。",
+            "今持っているボード、LED、センサー、線、抵抗を分かる範囲で教えてください。",
+            "スターターキットっぽいものがあれば、中身をざっくり書けますか？",
+        ],
+        "answers": {
+            "inventory_report": [
+                "ESP32、LED、抵抗、ブレッドボード、ジャンパ線があります",
+                "ArduinoとLEDと抵抗セット、あと超音波センサーっぽいものがあります",
+                "M5StackとGroveケーブル、距離センサー、ブザーがあります",
+                "青い基板とLEDと線はあります。抵抗はたぶんあります",
+                "スターターキット一式がありますが、名前は全部は分からないです",
+            ],
+            "unknown": [
+                "部品名がよく分からないです",
+                "箱にいろいろ入ってますが、どれが何か自信ないです",
+                "LEDっぽいものはあります。抵抗かどうか分からない部品もあります",
+            ],
+            "photo_request": [
+                "写真で見てもらいたいです",
+                "机に並べて写真を送った方が早そうです",
+                "部品名が読めないので画像で確認したいです",
+            ],
+        },
+    },
+    {
+        "topic": "gnd",
+        "stages": ["minimal_circuit", "debug_triage"],
+        "questions": [
+            "センサー、LED、ボードのGNDは同じGND列につながっていますか？",
+            "ボードのGNDとブレッドボードのマイナス列はつながっていますか？",
+            "黒や青のジャンパ線は、全部同じGNDラインに集まっていますか？",
+            "GNDが共通になっているか、今見える範囲で教えてください。",
+        ],
+        "answers": {
+            "confirmed": [
+                "同じGND列につながっています",
+                "ボードのGNDからマイナス列に線が出ています",
+                "LEDの短い足側もセンサーのGNDも同じ列にしました",
+                "たぶん同じところにつながっています",
+                "さっき別でしたが、つなぎ直しました",
+            ],
+            "negative": [
+                "別の列に刺さっているかもしれません",
+                "GNDの線がセンサー側に行っていないです",
+                "同じ列ではない気がします",
+            ],
+            "unknown": [
+                "同じ列か分からないです",
+                "ブレッドボードの列のつながりがまだ自信ないです",
+                "黒い線はありますがGNDか分かりません",
+            ],
+            "photo_request": [
+                "写真で確認してほしいです",
+                "配線がごちゃっとしているので画像で見てもらいたいです",
+            ],
+        },
+    },
+    {
+        "topic": "led",
+        "stages": ["minimal_circuit", "debug_triage"],
+        "questions": [
+            "LEDの長い足は、抵抗を通ってGPIO側につながっていますか？",
+            "LEDの短い足はGND側、長い足は抵抗側になっていますか？",
+            "LEDの向きは、足の長さを見て確認できていますか？",
+            "LEDの極性を、今見えている状態で教えてください。",
+        ],
+        "answers": {
+            "confirmed": [
+                "長い足が抵抗を通ってGPIO側につながっています",
+                "短い足をGND側にしました",
+                "向きは大丈夫そうです",
+                "たぶん合っています。長い足がプラス側です",
+                "逆だったので直しました",
+            ],
+            "negative": [
+                "長い足がGND側かもしれません",
+                "向きを見ずに刺してしまいました",
+                "たぶん逆です",
+            ],
+            "unknown": [
+                "足を切ってしまって長さが分からないです",
+                "LEDの向きが分からないです",
+                "どっちが長い足だったか自信ないです",
+            ],
+            "problem_report": [
+                "向きを直しても光りません",
+                "LEDが一瞬だけ光って消えます",
+                "LEDは光らないけどボードのランプは光っています",
+            ],
+        },
+    },
+    {
+        "topic": "resistor",
+        "stages": ["minimal_circuit", "debug_triage"],
+        "questions": [
+            "LEDとGPIOの間に220Ω前後の抵抗は入っていますか？",
+            "LEDをGPIOへ直接つながず、抵抗を一本はさんでいますか？",
+            "抵抗っぽい部品はLEDの足とGPIOの間に入っていますか？",
+            "抵抗なしでLEDを直結していないか確認できますか？",
+        ],
+        "answers": {
+            "confirmed": [
+                "220Ωの抵抗を一本はさんでいます",
+                "抵抗は入っています。色の帯がある部品です",
+                "GPIOとLEDの間に抵抗を入れました",
+                "直接ではなく抵抗経由になっています",
+            ],
+            "negative": [
+                "直接つないでいました",
+                "抵抗が見つからないです",
+                "ジャンパ線だけでつないでいるかも",
+            ],
+            "unknown": [
+                "どれが抵抗か分からないです",
+                "抵抗値が合っているか自信ないです",
+                "色の帯が読めません",
+            ],
+        },
+    },
+    {
+        "topic": "board",
+        "stages": ["firmware_upload", "parts_check"],
+        "questions": [
+            "使うボードは Arduino、ESP32、M5Stack、Pico のどれですか？",
+            "コードを書き込む先のマイコン名は分かりますか？",
+            "Arduino IDEで選ぶ予定のボード名を教えてください。",
+            "手元の基板はESP32系、Arduino系、M5Stack系のどれに近いですか？",
+        ],
+        "answers": {
+            "board_report": [
+                "ESP32です",
+                "Arduino Unoを使っています",
+                "M5Stack Basicです",
+                "Picoっぽいです",
+                "ESP32 DevKitと書いてあります",
+            ],
+            "unknown": [
+                "ボード名が分からないです",
+                "ESP32っぽいけど自信ないです",
+                "青い基板です。名前は読めません",
+            ],
+            "problem_report": [
+                "ボードを選ぶところで迷っています",
+                "選ぶボード名が見つかりません",
+                "USBを挿しても認識されません",
+            ],
+        },
+    },
+    {
+        "topic": "usb_port",
+        "stages": ["firmware_upload", "debug_triage"],
+        "questions": [
+            "Arduino IDEやエディタで、ボード名とポートは選べていますか？",
+            "PC側でCOMポート、またはシリアルポートは表示されていますか？",
+            "USBケーブルはデータ通信対応で、書き込み先ポートが見えていますか？",
+            "コードのアップロードは完了しましたか？エラーは出ていますか？",
+        ],
+        "answers": {
+            "confirmed": [
+                "COMポートが見えています",
+                "書き込みできました",
+                "ボード名とポートを選べました",
+                "アップロード完了と出ました",
+            ],
+            "negative": [
+                "ポートが出ません",
+                "書き込みできていません",
+                "USBを挿しても反応しないです",
+            ],
+            "problem_report": [
+                "Failed to connect と出ます",
+                "A fatal error occurred と出ました",
+                "checkpoint loadedで止まっています",
+                "コンパイルは通るけど書き込みで失敗します",
+            ],
+            "unknown": [
+                "どれがポートか分からないです",
+                "エラー文が長くて読めません",
+            ],
+        },
+    },
+    {
+        "topic": "serial",
+        "stages": ["observe_serial", "debug_triage"],
+        "questions": [
+            "シリアルモニタに起動メッセージや数値は出ていますか？",
+            "Serial Monitorに start やセンサー値は表示されていますか？",
+            "手を近づけたり離したりしたとき、シリアルの値は変わりますか？",
+            "シリアルモニタの表示を、そのまま一行で教えてください。",
+        ],
+        "answers": {
+            "confirmed": [
+                "start と数値が出ています",
+                "手を近づけると値が変わります",
+                "シリアルに距離っぽい数字が出ています",
+                "起動メッセージと数値が出ています",
+            ],
+            "negative": [
+                "何も出ません",
+                "値がずっと0です",
+                "文字化けしています",
+            ],
+            "problem_report": [
+                "シリアルモニタを開くとエラーになります",
+                "リセットすると一瞬だけ出て消えます",
+                "値が変わらないです",
+            ],
+            "unknown": [
+                "シリアルモニタの開き方が分からないです",
+                "どの数字を見ればいいか分かりません",
+            ],
+        },
+    },
+    {
+        "topic": "extension",
+        "stages": ["standard_build", "enclosure", "extension"],
+        "questions": [
+            "次は見た目、音、センサー追加のどれを足したいですか？",
+            "完成版に近づけるなら、光・音・動き・外装のどれを足しますか？",
+            "作品らしさを出すために、一つだけ追加するとしたら何にしますか？",
+            "ここで完成ログにするか、もう一機能だけ足すか、どちらにしますか？",
+        ],
+        "answers": {
+            "confirmed": [
+                "ブザーを追加したいです",
+                "光り方をかわいくしたいです",
+                "紙箱に入れて机に置きたいです",
+                "ここで完成にします",
+                "次はサーボで少し動かしたいです",
+            ],
+            "unknown": [
+                "何を足すか迷っています",
+                "完成に近づけたいけど方向が決まりません",
+            ],
+            "problem_report": [
+                "ブザーを足したらLEDも消えました",
+                "サーボをつないだら電源が落ちます",
+                "外装に入れたら線が抜けました",
+            ],
+            "photo_request": [
+                "見た目を写真で相談したいです",
+                "ケースに入れた状態を見てほしいです",
+            ],
+        },
+    },
+]
+
+
+ROBUST_REPLY_TEMPLATES = {
+    "inventory": {
+        "good": [
+            ("部品情報を受け取りました", "書いてくれた部品を所持品として扱います。名前があいまいなものは、不足部品と代替候補に分けて見積もります。", "次は最小回路に使うLED、抵抗、GNDだけを確認します。"),
+            ("その部品で始められます", "まずは手元にあるものを優先して、買い足しを少なくする構成にします。分からない部品はあとで写真チェックに回せます。", "USBを抜いた状態で、LEDと抵抗を探してください。"),
+        ],
+        "warn": [
+            ("部品名が曖昧でも進めます", "全部の名前が分からなくても大丈夫です。初心者向けのスターター構成として扱い、危ない部品は使わない前提で進めます。", "分かる部品だけ使って、最小構成から始めます。"),
+            ("写真確認に回せます", "部品の名前が読めないときは、無理に判断せず画像で確認する方が安全です。今は推定で進めます。", "まずはLED、抵抗、USBケーブルだけを分けてください。"),
+        ],
+    },
+    "gnd": {
+        "good": [
+            ("GND共有は大丈夫そうです", "ボード、LED、センサーの基準がそろっているので、次はコード側のピン番号確認へ進めます。", "コードのGPIO番号と配線先を合わせます。"),
+            ("基準線はそろいました", "GNDが共通になっていると、センサー値やLEDの反応を正しく見られます。ここは大きな山を越えています。", "次は確認用コードを書き込みます。"),
+        ],
+        "warn": [
+            ("GNDを先にそろえましょう", "GNDが別れていると、コードが合っていても反応しません。USBを抜いてから、GND線だけを同じ列へまとめます。", "つなぎ直したら「GNDを同じ列にしました」と答えてください。"),
+            ("ここは止まって正解です", "GNDは初心者が一番つまずきやすい場所です。色ではなく、同じ列につながっているかを見ます。", "写真で確認したい場合は、そのまま写真チェックに回せます。"),
+        ],
+    },
+    "led": {
+        "good": [
+            ("LEDの向きは大丈夫そうです", "長い足が抵抗を通ってGPIO側、短い足がGND側なら、次は抵抗とピン番号を合わせます。", "コード側のGPIO番号と配線先を確認します。"),
+            ("LED極性はクリアです", "向きが合っているので、最小回路の確認を前へ進められます。", "確認用コードを書き込んでLEDだけを試します。"),
+        ],
+        "warn": [
+            ("LEDの向きを見直しましょう", "LEDは向きがあります。USBを抜いてから、短い足をGND側、長い足を抵抗側にします。", "直したら「向きを直した」と答えてください。"),
+            ("LEDだけで一度確認します", "センサーやブザーを足す前に、LED単体で光るかを見ると原因を絞れます。", "LEDと抵抗だけの最小回路に戻します。"),
+        ],
+    },
+    "resistor": {
+        "good": [
+            ("抵抗は入っています", "LEDをGPIOへ直接つないでいないので、安全側で進められます。次はコードとピンの一致を見ます。", "GPIO番号をコードと配線でそろえます。"),
+            ("LED保護はOKです", "抵抗が直列に入っていれば、まずはLEDだけの動作確認に進めます。", "確認用コードを書き込みます。"),
+        ],
+        "warn": [
+            ("抵抗なしでは進めません", "LEDをGPIOに直結すると故障リスクがあります。220Ω前後の抵抗を一本はさんでください。", "抵抗を入れたら、LEDだけで再確認します。"),
+            ("抵抗を探しましょう", "色の帯がある小さい部品が抵抗です。向きはありません。LEDとGPIOの間に入れます。", "分からなければ部品写真チェックに回します。"),
+        ],
+    },
+    "board": {
+        "good": [
+            ("ボード情報を反映しました", "使うマイコンに合わせて、ピン番号と書き込み手順を変えます。", "次はボード設定とポートを確認します。"),
+            ("このボードで進めます", "ボード名が分かると、コードの書き方とピン割り当てを安全に決められます。", "IDEで同じボード名を選んでください。"),
+        ],
+        "warn": [
+            ("ボード名は焦らなくて大丈夫です", "名前が分からない場合は、USB端子の形や基板の印字から推定します。今はスターター構成で進めます。", "写真か印字を見て、ESP32/Arduino/M5Stack/Picoのどれに近いか確認します。"),
+            ("認識問題として扱います", "USBを挿しても出ない場合、ボード設定より先にケーブルとドライバを疑います。", "別のUSBケーブルがあれば試してください。"),
+        ],
+    },
+    "usb_port": {
+        "good": [
+            ("書き込み準備はできています", "ボードとポートが見えているので、確認用コードを書き込んでシリアル出力を見ます。", "書き込み後、シリアルモニタを開いてください。"),
+            ("PC接続は大丈夫そうです", "COMポートが出ているなら、次はコードが動いているかをログで確認します。", "起動メッセージが出るか見ます。"),
+        ],
+        "warn": [
+            ("ポート認識を先に直します", "ポートが出ない状態では書き込みできません。充電専用ケーブル、ドライバ、ボード選択を順に確認します。", "まず別のUSBケーブルで試してください。"),
+            ("書き込みエラーとして切り分けます", "エラー文が出ているなら、全文ではなく最初の1行だけで原因を絞れます。", "エラーの先頭1行を貼ってください。"),
+        ],
+    },
+    "serial": {
+        "good": [
+            ("ログが見えています", "起動メッセージや数値が出ているので、コードは動いています。次は値が変わるかを見ます。", "手を近づけたり離したりして値の変化を見ます。"),
+            ("観察できる状態です", "シリアルに反応があるなら、作品化へ進む準備ができています。", "次はブザーや外装などを一つだけ足します。"),
+        ],
+        "warn": [
+            ("シリアル出力を先に出しましょう", "何も出ない場合、書き込み、速度設定、Serial.beginのどれかで止まっている可能性があります。", "速度をコードと同じにして、もう一度開きます。"),
+            ("値が変わらない原因を絞ります", "ずっと0や同じ値なら、センサー配線かピン番号が合っていない可能性があります。", "センサーのVCC、GND、SIGを確認します。"),
+        ],
+    },
+    "extension": {
+        "good": [
+            ("作品化の方向が見えました", "拡張は一度に一つだけ足すと、失敗しても戻しやすいです。", "追加前の動くコードを保存してから進めます。"),
+            ("次の一機能を決めました", "光、音、動き、外装のうち一つに絞ると、完成率が上がります。", "追加する部品を一つだけ選びます。"),
+        ],
+        "warn": [
+            ("拡張で崩れた状態として扱います", "追加後に動かなくなった場合は、追加した部品だけを外して最小構成へ戻します。", "まず変更前の動く状態に戻しましょう。"),
+            ("完成を急がず一つ戻します", "作品化で一気に増やすと原因が追えなくなります。追加は一機能だけにします。", "最後に足した部品を外して確認します。"),
+        ],
+    },
+    "mood": {
+        "good": [
+            ("作りたい方向が見えました", "まだ曖昧でも大丈夫です。気分から作品候補を3つに絞ります。", "一番おすすめ、安い案、少し挑戦案を出します。"),
+        ],
+        "warn": [
+            ("決まっていなくても始められます", "作りたいものが分からない状態も入力として扱います。予算か持ち物から候補を作ります。", "まずは予算だけ選んで進めます。"),
+        ],
+    },
+    "budget": {
+        "good": [
+            ("予算を反映しました", "安すぎる見積もりにならないよう、ケーブル、抵抗、ジャンパ線、外装も含めて考えます。", "予算内で最小構成から出します。"),
+        ],
+        "warn": [
+            ("予算未定でも進めます", "0円で試す案、1000円以内の案、5000円以内の案に分けて候補を出します。", "手元部品を優先して見積もります。"),
+        ],
+    },
+}
+
+
+def generate_records(samples: int, seed: int = 131, robust_ratio: float = 0.7) -> list[dict[str, Any]]:
     rng = random.Random(seed)
     records: list[dict[str, Any]] = []
-    for _ in range(samples):
+    seen: set[str] = set()
+    attempts = 0
+    max_attempts = max(samples * 30, 1000)
+    while len(records) < samples and attempts < max_attempts:
+        attempts += 1
+        record = generate_robust_record(rng) if rng.random() < robust_ratio else generate_base_record(rng)
+        key = dedupe_key(record)
+        if key in seen:
+            continue
+        seen.add(key)
+        records.append(record)
+    if len(records) < samples:
+        raise RuntimeError(f"Could only generate {len(records)} unique tutorial response records out of {samples}.")
+    return records
+
+
+def generate_base_record(rng: random.Random) -> dict[str, Any]:
         project_id = rng.choice(list(PROJECTS))
         current_stage = rng.choice(STAGES[:-1])
         question = question_for_stage(current_stage, rng)
@@ -251,8 +650,144 @@ def generate_records(samples: int, seed: int = 131) -> list[dict[str, Any]]:
             "previous": rng.choice(["", "前回はLEDの向きで詰まった", "USBケーブルが充電専用だった", "部品名が分からず止まった"]),
         })
         target = build_target(project_id, question, answer, current_stage, next_stage, kind, rng)
-        records.append({"source": source, "target": target, "nextStage": next_stage, "kind": target_kind(target)})
-    return records
+        return {
+            "source": source,
+            "target": target,
+            "nextStage": next_stage,
+            "kind": target_kind(target),
+            "topic": topic,
+            "currentStage": current_stage,
+            "generator": "base",
+        }
+
+
+def generate_robust_record(rng: random.Random) -> dict[str, Any]:
+    scenario = rng.choice(ROBUST_SCENARIOS)
+    topic = scenario["topic"]
+    project_id = rng.choice(list(PROJECTS))
+    current_stage = rng.choice(scenario["stages"])
+    question = mutate_question(rng.choice(scenario["questions"]), rng)
+    kind = choose_robust_kind(topic, scenario, rng)
+    answer = mutate_robust_answer(rng.choice(scenario["answers"][kind]), topic, kind, rng)
+    next_stage = choose_next_stage(question, current_stage, kind)
+    if current_stage == "extension" and kind == "confirmed" and any(token in answer for token in ["完成", "ここで終わり", "終わり"]):
+        next_stage = "completion_log"
+    source = build_source({
+        "projectId": project_id,
+        "projectTitle": PROJECTS[project_id],
+        "currentStage": current_stage,
+        "question": question,
+        "answer": answer,
+        "inventory": rng.choice(ROBUST_CONTEXTS["inventories"]),
+        "budget": rng.choice([0, 1000, 1500, 3000, 5000, 8000, 10000, 20000]),
+        "symptom": symptom_for_kind(kind, answer),
+        "skill": rng.choice(ROBUST_CONTEXTS["skills"]),
+        "previous": rng.choice(ROBUST_CONTEXTS["previous"]),
+    })
+    target = build_robust_target(project_id, question, answer, current_stage, next_stage, kind, topic, rng)
+    return {
+        "source": source,
+        "target": target,
+        "nextStage": next_stage,
+        "kind": target_kind(target),
+        "topic": topic,
+        "currentStage": current_stage,
+        "generator": "robust",
+    }
+
+
+def dedupe_key(record: dict[str, Any]) -> str:
+    source = re.sub(r"\s+", " ", record["source"]).strip()
+    target = re.sub(r"\s+", " ", record["target"]).strip()
+    return f"{source}\n---\n{target}"
+
+
+def choose_robust_kind(topic: str, scenario: dict[str, Any], rng: random.Random) -> str:
+    available = list(scenario["answers"])
+    if topic in {"gnd", "led", "resistor", "usb_port", "serial"}:
+        preferred = rng.choices(["confirmed", "negative", "unknown", "problem_report", "photo_request"], weights=[34, 24, 18, 16, 8], k=1)[0]
+    elif topic == "inventory":
+        preferred = rng.choices(["inventory_report", "unknown", "photo_request"], weights=[54, 28, 18], k=1)[0]
+    elif topic == "board":
+        preferred = rng.choices(["board_report", "unknown", "problem_report"], weights=[55, 24, 21], k=1)[0]
+    elif topic == "extension":
+        preferred = rng.choices(["confirmed", "unknown", "problem_report", "photo_request"], weights=[45, 25, 20, 10], k=1)[0]
+    else:
+        preferred = rng.choice(available)
+    return preferred if preferred in available else rng.choice(available)
+
+
+def mutate_question(question: str, rng: random.Random) -> str:
+    prefixes = ["", "", "確認です。", "次だけ見たいです。", "いま見えている範囲で、", "焦らなくて大丈夫です。"]
+    suffixes = ["", "", "そのまま一行で答えてください。", "分からなければ分からないでOKです。", "写真で見たい場合もそう書いてください。"]
+    text = f"{rng.choice(prefixes)}{question}"
+    if rng.random() < 0.36:
+        text = f"{text} {rng.choice(suffixes)}"
+    if rng.random() < 0.12:
+        text = text.replace("GND", rng.choice(["GND", "gnd", "グランド"]))
+    if rng.random() < 0.1:
+        text = text.replace("GPIO", rng.choice(["GPIO", "ピン", "gpio"]))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def mutate_robust_answer(answer: str, topic: str, kind: str, rng: random.Random) -> str:
+    prefixes = [
+        "", "", "", "今見た感じ、", "たぶん、", "すみません、", "写真だと、", "さっき直して、",
+        "完全には自信ないですが、", "いまの状態は、",
+    ]
+    suffixes = [
+        "", "", "", "このまま進めていいですか？", "次に何を見ればいいですか？",
+        "ちょっと不安です。", "たぶん合ってると思います。", "一応そう見えます。",
+    ]
+    text = f"{rng.choice(prefixes)}{answer}"
+    if rng.random() < 0.42:
+        text = f"{text}。{rng.choice(suffixes)}"
+    if rng.random() < 0.18 and kind in {"confirmed", "unknown"}:
+        text = f"{text} でも少し自信ないです"
+    if rng.random() < 0.13 and topic in {"usb_port", "serial", "led"}:
+        text = f"{text} / 画面には {rng.choice(['start', '0', 'Failed to connect', 'COM3', 'Upload done'])} と出ています"
+    if rng.random() < 0.12:
+        text = introduce_light_typo(text, rng)
+    if rng.random() < 0.08:
+        text = text.replace("です", rng.choice(["です", "っす", "ですー"]))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def introduce_light_typo(text: str, rng: random.Random) -> str:
+    replacements = [
+        ("つながっています", "つながってます"),
+        ("分からない", "わからない"),
+        ("シリアル", "serial"),
+        ("ポート", "port"),
+        ("抵抗", "ていこう"),
+        ("ブレッドボード", "ブレボ"),
+        ("アップロード", "upload"),
+        ("GND", "gnd"),
+    ]
+    rng.shuffle(replacements)
+    for before, after in replacements:
+        if before in text:
+            return text.replace(before, after, 1)
+    if len(text) > 8:
+        index = rng.randrange(2, len(text) - 2)
+        return text[:index] + text[index + 1 :]
+    return text
+
+
+def build_robust_target(project_id: str, question: str, answer: str, current_stage: str, next_stage: str, kind: str, topic: str, rng: random.Random) -> str:
+    style = "good" if kind in {"confirmed", "inventory_report", "board_report"} else "warn" if kind in {"negative", "unknown", "problem_report", "photo_request"} else "info"
+    template_group = ROBUST_REPLY_TEMPLATES.get(topic, ROBUST_REPLY_TEMPLATES["mood"])
+    template_key = "good" if style == "good" else "warn"
+    title, body, instruction = rng.choice(template_group.get(template_key, template_group["warn"]))
+    answer_snippet = summarize_answer(answer)
+    project_title = PROJECTS[project_id]
+    if rng.random() < 0.46:
+        body = f"{body} 入力は「{answer_snippet}」として受け取りました。"
+    if rng.random() < 0.34:
+        body = f"{body} {project_title}では、いきなり完成形にせず最小構成から進めます。"
+    if rng.random() < 0.24:
+        instruction = f"{instruction} 迷ったら「分からない」と答えて大丈夫です。"
+    return f"style:{style}\ntitle:{title}\nbody:{body}\nnext:{instruction}\nstage:{next_stage}"
 
 
 def question_for_stage(stage: str, rng: random.Random) -> str:
