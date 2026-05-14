@@ -1932,6 +1932,7 @@
           return;
         }
         const question = tutorial.nextQuestion || "今見えている状態を一言で教えてください。";
+        const chips = answerChipsFor(question, state.lastAgentReply);
         state.latestQuestion = question;
         target.innerHTML = `
           <div class="meta">
@@ -1942,6 +1943,8 @@
           </div>
           <h3 style="margin-top:12px">${escapeHtml(tutorial.title)}</h3>
           <p class="subtitle">${escapeHtml(tutorial.teacherNote)}</p>
+          ${renderStageStrip(stageId)}
+          ${renderNextCard(stageId, tutorial)}
           <div class="kv">
             <div><span>次の一手</span><strong>${escapeHtml(tutorial.nextAction)}</strong></div>
             <div><span>次の質問</span><strong>${escapeHtml(tutorial.nextQuestion)}</strong></div>
@@ -1950,14 +1953,10 @@
           <div class="answer-panel">
             <span class="section-label">ここに答える</span>
             <p class="answer-question">${escapeHtml(question)}</p>
-            <textarea id="answerBox" class="answer-box" placeholder="例: LEDはまだ光っていない / COMポートは見えている / 分からない"></textarea>
+            <textarea id="answerBox" class="answer-box" placeholder="${escapeHtml(placeholderForQuestion(question))}"></textarea>
             <div class="answer-tools">
               <div class="answer-chips">
-                <button class="chip small answer-chip" type="button" data-answer="はい">はい</button>
-                <button class="chip small answer-chip" type="button" data-answer="いいえ">いいえ</button>
-                <button class="chip small answer-chip" type="button" data-answer="分からない">分からない</button>
-                <button class="chip small answer-chip" type="button" data-answer="分からないのでスターター構成で進めたい">分からないので次へ</button>
-                <button class="chip small answer-chip" type="button" data-answer="写真で確認したい">写真で確認したい</button>
+                ${chips.map((chip) => `<button class="chip small answer-chip" type="button" data-answer="${escapeHtml(chip)}">${escapeHtml(chip)}</button>`).join("")}
               </div>
               <button class="primary answer-submit" type="button" id="answerButton">回答して次へ</button>
             </div>
@@ -1997,6 +1996,70 @@
             answerTutorialQuestion();
           });
         });
+      }
+
+      function renderStageStrip(currentStage) {
+        const currentIndex = Math.max(0, STAGE_FLOW.findIndex((stage) => stage.id === currentStage));
+        return `
+          <div class="stage-strip" aria-label="制作の進み具合">
+            ${STAGE_FLOW.slice(0, 8).map((stage, index) => {
+              const className = index < currentIndex ? "done" : index === currentIndex ? "current" : "";
+              return `<div class="stage-chip ${className}"><strong>${index + 1}. ${escapeHtml(stage.title)}</strong>${escapeHtml(stage.detail)}</div>`;
+            }).join("")}
+          </div>
+        `;
+      }
+
+      function renderNextCard(stageId, tutorial) {
+        const table = {
+          orient: ["まずは迷いを減らします", "気分、予算、持っている部品のどれか一つだけで大丈夫です。作品候補は3つに絞ります。"],
+          parts_check: ["部品名はあいまいでOK", "箱や机の上にあるものを一行で並べてください。足りないものはBOM側で分けます。"],
+          minimal_circuit: ["最小構成だけ先に動かします", "完成形に行く前に、LED・抵抗・GNDだけを短く確認します。"],
+          firmware_upload: ["コードとピンを合わせます", "配線先のGPIOとコードの番号が同じかを見てから書き込みます。"],
+          observe_serial: ["シリアルで現象を見ます", "光った/光らないだけでなく、値が出るかを見ると原因を絞れます。"],
+          debug_triage: ["一つずつ戻します", "物理、電源、コード、ライブラリの順に、原因を一つだけ潰します。"],
+          standard_build: ["作品っぽさを足します", "ブザー、表情、ケースなどを一つだけ追加して、見せられる形にします。"],
+          enclosure: ["抜けにくく固定します", "金属ケースは避け、USBや配線に無理が出ない固定にします。"],
+          extension: ["拡張は一個だけ", "音、動き、ログのどれか一つを足して、動いた状態を壊さず進めます。"],
+        };
+        const [title, body] = table[stageId] || ["次の一手を短く進めます", tutorial?.nextAction || "今の状態に合わせて手順を作り直します。"];
+        return `<div class="next-card"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(body)}</p></div>`;
+      }
+
+      function answerChipsFor(question, reply = null) {
+        const topic = questionTopic(question);
+        const fromReply = Array.isArray(reply?.suggestedChips) ? reply.suggestedChips : [];
+        const table = {
+          inventory: ["ESP32, LED, 抵抗, ブレッドボードがあります", "部品名が分からない", "写真で確認したい"],
+          board: ["ESP32です", "Arduino Unoです", "ボード名が分からない"],
+          gnd: ["同じGND列につながっています", "別の列かもしれない", "写真で確認したい"],
+          led: ["長い足が抵抗を通ってGPIO側です", "向きが逆かもしれない", "分からない"],
+          resistor: ["抵抗を一本はさんでいます", "抵抗が見つからない", "直接つないでいるかも"],
+          upload: ["書き込みできました", "COMポートが出ません", "エラーが出ています"],
+          serial: ["起動メッセージと数値が出ています", "何も出ません", "値が変わりません"],
+          enclosure: ["紙箱に固定したいです", "まだむき出しです", "外装は後でいいです"],
+          extension: ["ブザーを追加したいです", "光り方をかわいくしたいです", "ここで完成にします"],
+        };
+        return uniqueList([...(table[topic] || ["できた", "分からない", "写真で確認したい"]), ...fromReply]).slice(0, 5);
+      }
+
+      function placeholderForQuestion(question) {
+        const topic = questionTopic(question);
+        const table = {
+          inventory: "例: ESP32, LED, 220Ω抵抗, ブレッドボード, USBケーブル",
+          board: "例: ESP32です / Arduino Unoです / ボード名が分からない",
+          gnd: "例: 同じGND列につながっています / 別の列かもしれません",
+          led: "例: 長い足が抵抗を通ってGPIO側につながっています",
+          resistor: "例: 220Ωの抵抗をLEDとGPIOの間に入れています",
+          upload: "例: 書き込みできました / COMポートが見えません",
+          serial: "例: start と数値が出ています / 何も出ません",
+          extension: "例: ブザーを足したいです / ここで完成にします",
+        };
+        return table[topic] || "例: LEDは光った / まだ動かない / 分からない";
+      }
+
+      function uniqueList(items) {
+        return [...new Set(items.filter(Boolean).map((item) => String(item)))];
       }
 
       async function answerTutorialQuestion() {
@@ -2491,6 +2554,8 @@
       }
 
       splashSkipButton?.addEventListener("click", closeSplash);
+      restoreDraft();
+      wireDraftSaving();
       startSplashTimer();
 
       agentMascotButton?.addEventListener("click", () => {

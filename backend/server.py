@@ -1330,6 +1330,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             fallback_stage=next_stage,
             kind=kind,
         )
+        presentation_kind = presentation_kind_for_free_answer(kind, str(neural.get("kind") or ""), reply["kind"])
         preview_payload = {
             **payload,
             "projectId": project.id,
@@ -1351,7 +1352,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             "question": question,
             "answer": answer,
             "interpreted": kind,
-            "kind": neural.get("kind") or reply["kind"],
+            "kind": presentation_kind,
             "title": neural.get("title") or reply["title"],
             "body": neural.get("body") or reply["body"],
             "nextInstruction": neural.get("nextInstruction") or reply["nextInstruction"],
@@ -1419,6 +1420,16 @@ def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: s
     if not ranked:
         return fallback_stage or current_stage
     return max(ranked, key=lambda stage: PROGRESS_STAGE_ORDER.index(stage))
+
+
+def presentation_kind_for_free_answer(interpreted_kind: str, neural_kind: str, fallback_kind: str) -> str:
+    if interpreted_kind in {"confirmed", "inventory_report", "board_report"}:
+        return "good"
+    if interpreted_kind in {"negative", "unknown", "problem_report", "photo_request"}:
+        return "warn"
+    if neural_kind in {"good", "warn", "info"}:
+        return neural_kind
+    return fallback_kind if fallback_kind in {"good", "warn", "info"} else "info"
 
 
 def classify_free_answer(answer: str) -> str:
