@@ -1483,6 +1483,41 @@
           target.textContent = "チュートリアルを生成できませんでした。";
           return;
         }
+        const stageId = result?.stage?.id || document.querySelector("#stage")?.value || "";
+        if (stageId === "completion_log") {
+          state.latestQuestion = "";
+          target.innerHTML = `
+            <div class="meta">
+              <span class="pill good">完成ログ</span>
+              <span class="pill info">${escapeHtml(result.route?.label || "次作品へ")}</span>
+              <span class="pill">自走度 ${percent(result.autonomyScore)}</span>
+            </div>
+            <h3 style="margin-top:12px">ここまでで一作品目は完成扱いにできます</h3>
+            <p class="subtitle">完成写真、使った部品、詰まったところを残すと、次の作品推薦がかなり賢くなります。</p>
+            <div class="kv">
+              <div><span>保存すること</span><strong>完成写真・部品・失敗ログ</strong></div>
+              <div><span>次の候補</span><strong>すぐ作れる / 少し挑戦 / 憧れに近づく</strong></div>
+              <div><span>安全確認</span><strong>USBを抜いて配線を固定</strong></div>
+            </div>
+            <ul>
+              <li>動いた最小構成を残す</li>
+              <li>変更前のコードを消さずに保存する</li>
+              <li>次は追加部品を一つだけ足す</li>
+            </ul>
+            <div class="timeline">
+              ${(tutorial.runbook || []).map((step) => `
+                <div class="step">
+                  <div class="num">${step.step}</div>
+                  <div>
+                    <strong>${escapeHtml(step.title)}</strong>
+                    <p class="subtitle">${escapeHtml(step.goal)}</p>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          `;
+          return;
+        }
         const question = tutorial.nextQuestion || "今見えている状態を一言で教えてください。";
         state.latestQuestion = question;
         target.innerHTML = `
@@ -1736,53 +1771,124 @@
         answerPanel?.insertAdjacentHTML("afterend", renderAgentReplyHtml(reply));
       }
 
+      const FLOW_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "enclosure", "extension", "completion_log"];
+
+      function questionTopic(question = "") {
+        const text = String(question || "");
+        const lowered = text.toLowerCase();
+        if (isInventoryQuestion(text)) return "inventory";
+        if (isBoardQuestion(text)) return "board";
+        if (isGndQuestion(text)) return "gnd";
+        if (text.includes("シリアル") || text.includes("起動メッセージ") || text.includes("数値") || lowered.includes("serial")) return "serial";
+        if (text.includes("ポート") || text.includes("書き込み") || text.includes("アップロード") || text.includes("COM") || lowered.includes("usb")) return "upload";
+        if (text.includes("外装") || text.includes("ケース") || text.includes("固定") || text.includes("見た目")) return "enclosure";
+        if (text.includes("拡張") || text.includes("ブザー") || text.includes("サーボ") || text.includes("音") || text.includes("ログ") || text.includes("完成")) return "extension";
+        if (text.includes("抵抗") || text.includes("220") || text.includes("GPIO")) return "resistor";
+        if (text.includes("LED") || lowered.includes("led")) return "led";
+        return "";
+      }
+
+      function updateFlowProgress(question, answer, agentReply = {}) {
+        const topic = questionTopic(question);
+        if (!topic) return;
+        const positive = isPositiveAnswer(answer, agentReply);
+        if ((topic === "inventory" || topic === "board") && !isUnknownAnswer(answer)) {
+          state.flow[topic] = true;
+        }
+        if (!positive) return;
+        if (topic in state.flow) state.flow[topic] = true;
+        if (topic === "board") state.flow.inventory = true;
+        if (topic === "serial") state.flow.standard = true;
+      }
+
+      function chooseProgressStage(currentStage, answer, question, agentReply = {}) {
+        const topic = questionTopic(question);
+        const positive = isPositiveAnswer(answer, agentReply);
+        const localStage = nextStageForAnswer(currentStage, answer, question);
+        const modelStage = agentReply.nextStage || "";
+        if (!positive && shouldStayInDebug(answer, agentReply)) {
+          return modelStage === "debug_triage" ? "debug_triage" : localStage;
+        }
+
+        let topicStage = localStage;
+        if (positive) {
+          if (topic === "inventory" || topic === "board") topicStage = "minimal_circuit";
+          if (topic === "gnd" || topic === "led" || topic === "resistor") topicStage = "firmware_upload";
+          if (topic === "upload") topicStage = "observe_serial";
+          if (topic === "serial") topicStage = "standard_build";
+          if (topic === "enclosure") topicStage = "extension";
+          if (topic === "extension") topicStage = "completion_log";
+        }
+
+        return furthestProgressStage(currentStage, modelStage, topicStage);
+      }
+
+      function furthestProgressStage(...stages) {
+        const ranked = stages.filter((stage) => FLOW_ORDER.includes(stage));
+        if (!ranked.length) {
+          return stages.includes("debug_triage") ? "debug_triage" : "parts_check";
+        }
+        return ranked.sort((a, b) => FLOW_ORDER.indexOf(b) - FLOW_ORDER.indexOf(a))[0];
+      }
+
+      function shouldStayInDebug(answer, agentReply = {}) {
+        const normalized = answer.replace(/\s/g, "").toLowerCase();
+        return agentReply.nextStage === "debug_triage" || ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
+          normalized.includes(word)
+        );
+      }
+
+      function isPositiveAnswer(answer, agentReply = {}) {
+        const normalized = answer.replace(/\s/g, "").toLowerCase();
+        if (isUnknownAnswer(answer) || ["いいえ", "no", "違う", "まだ", "ない", "出ない", "見えない", "動かない", "光らない", "エラー"].some((word) => normalized.includes(word))) {
+          return false;
+        }
+        return isYesAnswer(answer) || agentReply.kind === "good" || ["大丈夫", "でき", "完了", "入っています", "つなが", "通って", "見えています", "出ています", "合っています"].some((word) =>
+          normalized.includes(word.replace(/\s/g, "").toLowerCase())
+        );
+      }
+
       function isInventoryQuestion(question) {
-        return ["部品", "手元", "持っている", "所持", "inventory"].some((word) => question.includes(word));
+        return ["部品", "手元", "持っている", "所持", "一行", "inventory"].some((word) => question.includes(word));
       }
 
       function isBoardQuestion(question) {
-        return ["ボード", "Arduino", "ESP32", "M5Stack", "Pico"].some((word) => question.includes(word));
+        return ["ボード", "マイコン", "Arduino", "ESP32", "M5Stack", "Pico"].some((word) => question.includes(word));
       }
 
       function isUnknownAnswer(answer) {
         const normalized = answer.replace(/\s/g, "").toLowerCase();
-        return ["分からない", "わからない", "不明", "知らない", "不安", "unknown", "スターター"].some((word) => normalized.includes(word));
+        return ["分からない", "わからない", "不明", "知らない", "不安", "自信ない", "unknown", "スターター"].some((word) => normalized.includes(word.replace(/\s/g, "").toLowerCase()));
       }
 
       function isYesAnswer(answer) {
         const normalized = answer.replace(/\s/g, "").toLowerCase();
-        return ["はい", "yes", "ok", "できた", "つなが", "同じ", "直した", "確認した"].some((word) => normalized.includes(word));
+        return ["はい", "yes", "ok", "できた", "つなが", "同じ", "直した", "確認した", "通っています", "入っています", "大丈夫", "合っています", "見えています", "出ています"].some((word) => normalized.includes(word.replace(/\s/g, "").toLowerCase()));
       }
 
       function isGndQuestion(question) {
-        return ["GND", "gnd", "グランド", "ground"].some((word) => question.includes(word));
+        return ["GND", "gnd", "グランド", "マイナス列", "GND列", "ground"].some((word) => question.includes(word));
       }
 
       function nextStageForAnswer(currentStage, answer, question = "") {
-        const normalized = answer.replace(/\s/g, "").toLowerCase();
-        if (isInventoryQuestion(question)) {
-          return "minimal_circuit";
-        }
-        if (isBoardQuestion(question)) {
-          return currentStage === "orient" ? "parts_check" : "minimal_circuit";
-        }
-        if (isGndQuestion(question)) {
-          return isYesAnswer(answer) ? "firmware_upload" : "minimal_circuit";
-        }
+        const topic = questionTopic(question);
+        if (topic === "inventory") return "minimal_circuit";
+        if (topic === "board") return currentStage === "orient" ? "parts_check" : "minimal_circuit";
+        if (topic === "gnd" || topic === "led" || topic === "resistor") return isYesAnswer(answer) ? "firmware_upload" : "minimal_circuit";
+        if (topic === "upload") return isYesAnswer(answer) ? "observe_serial" : "debug_triage";
+        if (topic === "serial") return isYesAnswer(answer) ? "standard_build" : "debug_triage";
+        if (topic === "enclosure") return isYesAnswer(answer) ? "extension" : "enclosure";
+        if (topic === "extension") return isYesAnswer(answer) ? "completion_log" : "extension";
 
-        const needsDebug = ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
-          normalized.includes(word)
-        );
-        if (needsDebug) {
+        if (shouldStayInDebug(answer)) {
           if (currentStage === "orient") return "parts_check";
           if (currentStage === "parts_check") return "parts_check";
           return "debug_triage";
         }
 
-        const order = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "extension"];
-        const index = order.indexOf(currentStage);
-        if (index < 0 || index >= order.length - 1) return currentStage;
-        return order[index + 1];
+        const index = FLOW_ORDER.indexOf(currentStage);
+        if (index < 0 || index >= FLOW_ORDER.length - 1) return currentStage;
+        return FLOW_ORDER[index + 1];
       }
 
       function renderNeural(result) {
