@@ -709,6 +709,60 @@
         line-height: 1.5;
       }
 
+      .stage-strip {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        margin-top: 12px;
+      }
+
+      .stage-chip {
+        min-height: 58px;
+        border: 1px solid #dfe8e5;
+        border-radius: 8px;
+        background: #f9fbfa;
+        padding: 8px;
+        color: #607074;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .stage-chip strong {
+        display: block;
+        color: #38474a;
+        font-size: 13px;
+      }
+
+      .stage-chip.done {
+        border-color: #b9ded6;
+        background: #f3fbf9;
+      }
+
+      .stage-chip.current {
+        border-color: var(--accent);
+        background: var(--accent-weak);
+        box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+      }
+
+      .next-card {
+        display: grid;
+        gap: 6px;
+        margin-top: 12px;
+        border: 1px solid #d8e6e2;
+        border-radius: 8px;
+        background: #fbfdfb;
+        padding: 12px;
+      }
+
+      .next-card strong {
+        color: #0f4f4a;
+      }
+
+      .next-card p {
+        color: #45575b;
+        line-height: 1.55;
+      }
+
       .agent-reply {
         display: grid;
         gap: 7px;
@@ -1033,6 +1087,10 @@
 
         .answer-submit {
           width: 100%;
+        }
+
+        .stage-strip {
+          grid-template-columns: 1fr 1fr;
         }
 
         .splash-stage {
@@ -1401,6 +1459,19 @@
         posture_guard: "姿勢注意デバイス",
         temp_face: "温度で表情が変わるミニキャラ",
       };
+
+      const STAGE_FLOW = [
+        { id: "orient", title: "入口", detail: "気分・予算" },
+        { id: "parts_check", title: "部品", detail: "手元確認" },
+        { id: "minimal_circuit", title: "最小回路", detail: "まず動く" },
+        { id: "firmware_upload", title: "コード", detail: "書き込み" },
+        { id: "observe_serial", title: "観察", detail: "値を見る" },
+        { id: "standard_build", title: "作品化", detail: "見せる形" },
+        { id: "extension", title: "拡張", detail: "一つ足す" },
+        { id: "completion_log", title: "完成ログ", detail: "次へ" },
+      ];
+
+      const DRAFT_KEY = "lchika-agent-draft-v2";
 
       const state = {
         selectedEntry: "かわいいものを作りたい",
