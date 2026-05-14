@@ -753,6 +753,222 @@
         line-height: 1.6;
       }
 
+      .agent-companion {
+        position: fixed;
+        right: 104px;
+        bottom: 18px;
+        z-index: 900;
+        width: 236px;
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+        pointer-events: none;
+      }
+
+      .agent-companion.hidden {
+        display: none;
+      }
+
+      .agent-bubble {
+        position: relative;
+        max-width: 226px;
+        min-height: 48px;
+        border: 1px solid #cfe2dd;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #25363a;
+        box-shadow: 0 15px 38px rgba(15, 35, 39, 0.16);
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 800;
+        line-height: 1.5;
+        transform-origin: right bottom;
+        animation: mascotBubbleIn 0.32s ease both;
+      }
+
+      .agent-bubble::after {
+        content: "";
+        position: absolute;
+        right: 42px;
+        bottom: -8px;
+        width: 16px;
+        height: 16px;
+        border-right: 1px solid #cfe2dd;
+        border-bottom: 1px solid #cfe2dd;
+        background: #ffffff;
+        transform: rotate(45deg);
+      }
+
+      .agent-avatar {
+        position: relative;
+        width: 124px;
+        height: 124px;
+        border: 0;
+        background: transparent;
+        padding: 0;
+        cursor: pointer;
+        pointer-events: auto;
+        filter: drop-shadow(0 13px 24px rgba(12, 30, 34, 0.22));
+      }
+
+      .agent-avatar svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .mascot-body {
+        animation: mascotBob 3.2s ease-in-out infinite;
+        transform-origin: 60px 70px;
+      }
+
+      .mascot-eye {
+        transform-origin: center;
+        animation: mascotBlink 4s ease-in-out infinite;
+      }
+
+      .mascot-mouth-talk,
+      .mascot-mouth-wow {
+        opacity: 0;
+      }
+
+      .mascot-arm-right {
+        transform-origin: 89px 72px;
+      }
+
+      .mascot-led {
+        animation: mascotLed 1.9s ease-in-out infinite;
+      }
+
+      .mascot-spark {
+        opacity: 0;
+        transform-origin: center;
+      }
+
+      .agent-companion.is-thinking .mascot-body {
+        animation-duration: 0.95s;
+      }
+
+      .agent-companion.is-thinking .mascot-spark {
+        opacity: 1;
+        animation: mascotSpark 1.15s ease-in-out infinite;
+      }
+
+      .agent-companion.is-speaking .mascot-mouth-smile,
+      .agent-companion.is-warn .mascot-mouth-smile {
+        opacity: 0;
+      }
+
+      .agent-companion.is-speaking .mascot-mouth-talk {
+        opacity: 1;
+        animation: mascotTalk 0.54s steps(2, end) infinite;
+      }
+
+      .agent-companion.is-speaking .mascot-arm-right {
+        animation: mascotWave 0.8s ease-in-out infinite;
+      }
+
+      .agent-companion.is-success .mascot-led {
+        fill: #22c55e;
+      }
+
+      .agent-companion.is-success .mascot-arm-right {
+        animation: mascotWave 0.64s ease-in-out 3;
+      }
+
+      .agent-companion.is-warn .mascot-led {
+        fill: #f59e0b;
+      }
+
+      .agent-companion.is-warn .mascot-mouth-wow {
+        opacity: 1;
+      }
+
+      .agent-companion.is-warn .agent-bubble {
+        border-color: #f2cf8a;
+        background: #fff8e1;
+      }
+
+      .agent-companion.is-success .agent-bubble {
+        border-color: #b9ded6;
+        background: #f3fbf9;
+      }
+
+      @keyframes mascotBob {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-1deg);
+        }
+        50% {
+          transform: translateY(-7px) rotate(1.5deg);
+        }
+      }
+
+      @keyframes mascotBlink {
+        0%,
+        44%,
+        50%,
+        100% {
+          scale: 1 1;
+        }
+        47% {
+          scale: 1 0.12;
+        }
+      }
+
+      @keyframes mascotLed {
+        0%,
+        100% {
+          opacity: 0.68;
+        }
+        50% {
+          opacity: 1;
+        }
+      }
+
+      @keyframes mascotTalk {
+        0% {
+          transform: scaleY(0.68);
+        }
+        100% {
+          transform: scaleY(1.12);
+        }
+      }
+
+      @keyframes mascotWave {
+        0%,
+        100% {
+          transform: rotate(0);
+        }
+        50% {
+          transform: rotate(-14deg);
+        }
+      }
+
+      @keyframes mascotSpark {
+        0%,
+        100% {
+          transform: translateY(0) scale(0.82);
+          opacity: 0.35;
+        }
+        50% {
+          transform: translateY(-8px) scale(1.08);
+          opacity: 1;
+        }
+      }
+
+      @keyframes mascotBubbleIn {
+        from {
+          opacity: 0;
+          transform: translateY(8px) scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
       .timeline {
         display: grid;
         gap: 8px;
@@ -834,6 +1050,17 @@
           width: 68px;
           height: 68px;
           font-size: 38px;
+        }
+
+        .agent-companion {
+          right: 14px;
+          bottom: 92px;
+          width: min(228px, calc(100vw - 28px));
+        }
+
+        .agent-avatar {
+          width: 108px;
+          height: 108px;
         }
 
         .guide-actions {
@@ -1107,6 +1334,40 @@
         </section>
       </div>
     </main>
+
+    <aside class="agent-companion is-idle" id="agentMascot" aria-live="polite">
+      <div class="agent-bubble" id="agentMascotBubble">
+        <span id="agentMascotText">チカがここで見守っています。迷ったら今見えている状態を一行で教えてください。</span>
+      </div>
+      <button class="agent-avatar" id="agentMascotButton" type="button" aria-label="チカに相談する">
+        <svg viewBox="0 0 128 128" role="img" aria-label="Lチカのつづき エージェント チカ">
+          <g class="mascot-body">
+            <ellipse cx="64" cy="116" rx="34" ry="8" fill="#1f2937" opacity="0.14" />
+            <path class="mascot-arm-left" d="M31 73 C17 72 13 84 22 93 C28 99 38 95 39 86" fill="none" stroke="#0f766e" stroke-width="8" stroke-linecap="round" />
+            <path class="mascot-arm-right" d="M96 73 C112 67 119 77 113 88 C109 96 98 96 92 87" fill="none" stroke="#0f766e" stroke-width="8" stroke-linecap="round" />
+            <path d="M48 97 L43 113 M80 97 L86 113" stroke="#334155" stroke-width="7" stroke-linecap="round" />
+            <rect x="31" y="34" width="66" height="67" rx="18" fill="#0f766e" stroke="#123d3a" stroke-width="4" />
+            <rect x="40" y="45" width="48" height="35" rx="12" fill="#d9fbf0" stroke="#b9e8dc" stroke-width="3" />
+            <circle cx="47" cy="90" r="4" fill="#ffd86b" />
+            <circle cx="62" cy="90" r="4" fill="#9ee7d8" />
+            <circle cx="77" cy="90" r="4" fill="#f97361" />
+            <path d="M48 35 V22" stroke="#0f766e" stroke-width="5" stroke-linecap="round" />
+            <path d="M80 35 V22" stroke="#0f766e" stroke-width="5" stroke-linecap="round" />
+            <circle class="mascot-led" cx="48" cy="18" r="8" fill="#ffd86b" stroke="#a16207" stroke-width="3" />
+            <circle class="mascot-led" cx="80" cy="18" r="8" fill="#f97361" stroke="#9f3428" stroke-width="3" />
+            <circle class="mascot-eye" cx="54" cy="62" r="5" fill="#123d3a" />
+            <circle class="mascot-eye" cx="74" cy="62" r="5" fill="#123d3a" />
+            <path class="mascot-mouth-smile" d="M55 70 C60 76 69 76 74 70" fill="none" stroke="#123d3a" stroke-width="4" stroke-linecap="round" />
+            <ellipse class="mascot-mouth-talk" cx="64" cy="72" rx="9" ry="5" fill="#123d3a" />
+            <circle class="mascot-mouth-wow" cx="64" cy="72" r="6" fill="#123d3a" />
+            <path d="M43 51 H51 M77 51 H85 M56 83 H72" stroke="#7ccabd" stroke-width="3" stroke-linecap="round" opacity="0.75" />
+            <g class="mascot-spark">
+              <path d="M101 31 L105 21 L110 31 L120 35 L110 39 L105 49 L101 39 L91 35 Z" fill="#ffd86b" stroke="#a16207" stroke-width="2" />
+            </g>
+          </g>
+        </svg>
+      </button>
+    </aside>
 
     <button class="help-button" id="helpButton" type="button" aria-label="使い方を開く">
       <span>?</span>
