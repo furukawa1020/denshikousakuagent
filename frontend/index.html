@@ -1522,6 +1522,10 @@
       const guidePrevButton = document.querySelector("#guidePrevButton");
       const guideNextButton = document.querySelector("#guideNextButton");
       const guideFillButton = document.querySelector("#guideFillButton");
+      const agentMascot = document.querySelector("#agentMascot");
+      const agentMascotButton = document.querySelector("#agentMascotButton");
+      const agentMascotText = document.querySelector("#agentMascotText");
+      let mascotResetTimer = 0;
 
       function setStatus(text, ready = false) {
         statusText.textContent = text;
@@ -1530,6 +1534,42 @@
 
       function setProgress(text) {
         progress.textContent = text;
+        updateMascotFromProgress(text);
+      }
+
+      function setMascotState(mode = "idle", message = "") {
+        if (!agentMascot || !agentMascotText) return;
+        agentMascot.classList.remove("is-idle", "is-thinking", "is-speaking", "is-success", "is-warn");
+        agentMascot.classList.add(`is-${mode}`);
+        if (message) {
+          agentMascotText.textContent = message;
+        }
+      }
+
+      function nudgeMascot(mode, message, duration = 4200) {
+        window.clearTimeout(mascotResetTimer);
+        setMascotState(mode, message);
+        mascotResetTimer = window.setTimeout(() => {
+          setMascotState("idle", "チカがここで見守っています。迷ったら今見えている状態を一行で教えてください。");
+        }, duration);
+      }
+
+      function updateMascotFromProgress(text = "") {
+        const value = String(text || "");
+        if (!value) return;
+        if (value.includes("エラー") || value.includes("失敗") || value.includes("タイムアウト")) {
+          nudgeMascot("warn", "止まったところを一緒に切り分けます。まずは画面に出ている症状をそのまま書いてください。");
+          return;
+        }
+        if (value.includes("生成中") || value.includes("分類中") || value.includes("推定中") || value.includes("実行中") || value.includes("読んで")) {
+          setMascotState("thinking", "考え中です。部品、回路、コード、安全の順に組み立てています。");
+          return;
+        }
+        if (value.includes("完了") || value.includes("次の質問") || value.includes("進みます")) {
+          nudgeMascot("success", "次の一手ができました。質問に答えると、手順を作り直します。");
+          return;
+        }
+        setMascotState("speaking", value);
       }
 
       function closeSplash() {
@@ -1747,6 +1787,7 @@
         const stageId = result?.stage?.id || document.querySelector("#stage")?.value || "";
         if (stageId === "completion_log") {
           state.latestQuestion = "";
+          nudgeMascot("success", "完成ログまで来ました。写真、部品、詰まったところを残すと次の作品につながります。", 7000);
           target.innerHTML = `
             <div class="meta">
               <span class="pill good">完成ログ</span>
@@ -1854,6 +1895,7 @@
         const answer = box?.value.trim() || "";
         if (!answer) {
           setProgress("次の質問への答えを1行で入れてください。分からない場合は「分からない」で進められます。");
+          nudgeMascot("warn", "ここは一言で大丈夫です。「分からない」でも次の確認に進めます。");
           box?.focus();
           return;
         }
@@ -2024,6 +2066,8 @@
       function renderInlineAgentReply(reply) {
         const tutorial = document.querySelector("#tutorial");
         const existing = tutorial?.querySelector(".agent-reply");
+        const mascotMode = reply.kind === "warn" ? "warn" : reply.kind === "good" ? "success" : "speaking";
+        nudgeMascot(mascotMode, reply.nextInstruction || reply.title || "次の一手を作りました。");
         if (existing) {
           existing.outerHTML = renderAgentReplyHtml(reply);
           return;
@@ -2337,6 +2381,17 @@
 
       splashSkipButton?.addEventListener("click", closeSplash);
       startSplashTimer();
+
+      agentMascotButton?.addEventListener("click", () => {
+        const answerBox = document.querySelector("#answerBox");
+        if (answerBox) {
+          answerBox.focus();
+          nudgeMascot("speaking", "いま見えている状態をそのまま書いてください。例: LEDは光った、COMポートが見えない、分からない。", 6500);
+          return;
+        }
+        document.querySelector("#intent")?.focus();
+        nudgeMascot("speaking", "まずは左の入力欄に、気分・予算・持っている部品をざっくり書いてください。", 6500);
+      });
 
       helpButton.addEventListener("click", startGuide);
       guideCloseButton.addEventListener("click", closeGuide);
