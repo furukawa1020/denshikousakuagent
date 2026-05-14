@@ -5,6 +5,7 @@ import mimetypes
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,9 @@ from ai_bridge import circuit_validator_inference, inventory_matcher_inference, 
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
+RUNTIME_ROOT = Path(os.environ.get("RUNTIME_ROOT", str(ROOT / "runtime")))
+TUTORIAL_EVENT_LOG = Path(os.environ.get("TUTORIAL_EVENT_LOG", str(RUNTIME_ROOT / "tutorial_response_events.jsonl")))
+MAX_TUTORIAL_LOG_TEXT = int(os.environ.get("MAX_TUTORIAL_LOG_TEXT", "1200"))
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
 STAGE_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "debug_triage", "standard_build", "enclosure", "extension", "completion_log"]
@@ -1343,7 +1347,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             ]).strip(),
         }
         tutorial = tutorial_agent_inference(preview_payload)
-        return {
+        result = {
             "available": True,
             "model": neural.get("model") or "TutorialResponseTransformer",
             "modelDir": neural.get("modelDir"),
@@ -1366,6 +1370,8 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
                 "generated": neural.get("generated"),
             },
         }
+        log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
+        return result
 
     resolved_stage = merge_tutorial_stage(
         current_stage=current_stage,
@@ -1385,7 +1391,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         ]).strip(),
     }
     tutorial = tutorial_agent_inference(preview_payload)
-    return {
+    result = {
         "available": True,
         "model": "TutorialFreeResponseSynthesizer",
         "mode": "hybrid_neural_free_answer",
@@ -1402,6 +1408,8 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "confidence": confidence_for_free_answer(kind, question, answer),
         "tutorialPreview": tutorial if tutorial.get("available") else None,
     }
+    log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
+    return result
 
 
 def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: str, kind: str) -> str:
@@ -1430,6 +1438,104 @@ def presentation_kind_for_free_answer(interpreted_kind: str, neural_kind: str, f
     if neural_kind in {"good", "warn", "info"}:
         return neural_kind
     return fallback_kind if fallback_kind in {"good", "warn", "info"} else "info"
+
+
+def log_tutorial_response_event(
+    payload: dict[str, Any],
+    project: MakerProject,
+    question: str,
+    answer: str,
+    current_stage: str,
+    interpreted_kind: str,
+    result: dict[str, Any],
+    neural: dict[str, Any] | None = None,
+) -> None:
+    if os.environ.get("DISABLE_TUTORIAL_LOGS") == "1":
+        return
+    try:
+        event = {
+            "schema": "tutorial_response_event_v1",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "sessionId": clip_log_text(payload.get("sessionId") or "anonymous", 120),
+            "clientVersion": clip_log_text(payload.get("clientVersion") or "", 120),
+            "projectId": project.id,
+            "projectTitle": project.title,
+            "currentStage": current_stage,
+            "nextStage": result.get("nextStage"),
+            "interpreted": interpreted_kind,
+            "question": clip_log_text(question),
+            "answer": clip_log_text(answer),
+            "sourcePayload": {
+                "projectId": project.id,
+                "projectTitle": project.title,
+                "currentStage": current_stage,
+                "question": clip_log_text(question),
+                "answer": clip_log_text(answer),
+                "inventory": clip_log_text(payload.get("inventory") or ""),
+                "budget": clip_log_text(payload.get("budget") or ""),
+                "symptom": clip_log_text(payload.get("symptom") or "none"),
+                "skill": clip_log_text(payload.get("skill") or ""),
+                "previous": clip_log_text(payload.get("previous") or ""),
+            },
+            "response": {
+                "kind": result.get("kind") or "info",
+                "title": clip_log_text(result.get("title") or ""),
+                "body": clip_log_text(result.get("body") or ""),
+                "nextInstruction": clip_log_text(result.get("nextInstruction") or ""),
+                "nextStage": result.get("nextStage") or current_stage,
+                "confidence": result.get("confidence"),
+                "mode": result.get("mode"),
+                "model": result.get("model"),
+                "modelDir": result.get("modelDir"),
+            },
+            "target": tutorial_response_target(result, current_stage),
+            "neuralAvailable": bool((neural or {}).get("available")),
+            "neuralGenerated": clip_log_text((neural or {}).get("generated") or "", 2000),
+        }
+        TUTORIAL_EVENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with TUTORIAL_EVENT_LOG.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    except Exception as exc:  # pragma: no cover - logging must never block UX
+        print(f"tutorial log skipped: {exc}", flush=True)
+
+
+def tutorial_response_target(result: dict[str, Any], fallback_stage: str) -> str:
+    style = str(result.get("kind") or "info")
+    if style not in {"good", "warn", "info"}:
+        style = "info"
+    stage = str(result.get("nextStage") or fallback_stage or "parts_check")
+    if stage not in STAGE_ORDER:
+        stage = fallback_stage if fallback_stage in STAGE_ORDER else "parts_check"
+    return "\n".join([
+        f"style: {style}",
+        f"title: {result.get('title') or ''}",
+        f"body: {result.get('body') or ''}",
+        f"next: {result.get('nextInstruction') or ''}",
+        f"stage: {stage}",
+    ])
+
+
+def clip_log_text(value: Any, limit: int = MAX_TUTORIAL_LOG_TEXT) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}..."
+
+
+def tutorial_log_stats() -> dict[str, Any]:
+    if not TUTORIAL_EVENT_LOG.exists():
+        return {"enabled": os.environ.get("DISABLE_TUTORIAL_LOGS") != "1", "path": str(TUTORIAL_EVENT_LOG), "events": 0, "bytes": 0}
+    events = 0
+    with TUTORIAL_EVENT_LOG.open(encoding="utf-8") as handle:
+        for _line in handle:
+            events += 1
+    return {
+        "enabled": os.environ.get("DISABLE_TUTORIAL_LOGS") != "1",
+        "path": str(TUTORIAL_EVENT_LOG),
+        "events": events,
+        "bytes": TUTORIAL_EVENT_LOG.stat().st_size,
+        "updatedAt": datetime.fromtimestamp(TUTORIAL_EVENT_LOG.stat().st_mtime, timezone.utc).isoformat(),
+    }
 
 
 def classify_free_answer(answer: str) -> str:
@@ -1754,6 +1860,9 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self.send_json({"ok": True, "service": "Lチカのつづき", "api": "MakerGraph AI prototype", "runtime": runtime_health()})
+            return
+        if parsed.path == "/api/tutorial/log-stats":
+            self.send_json(tutorial_log_stats())
             return
         if parsed.path == "/api/skills/me":
             self.send_json(skill_state())

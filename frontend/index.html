@@ -1472,6 +1472,8 @@
       ];
 
       const DRAFT_KEY = "lchika-agent-draft-v2";
+      const SESSION_KEY = "lchika-agent-session-v1";
+      const CLIENT_VERSION = "tutorial-log-v1";
 
       const state = {
         selectedEntry: "かわいいものを作りたい",
@@ -1797,8 +1799,19 @@
           currentStage,
           symptom,
           device: "cuda",
+          sessionId: getSessionId(),
+          clientVersion: CLIENT_VERSION,
           topK: 3,
         };
+      }
+
+      function getSessionId() {
+        let id = localStorage.getItem(SESSION_KEY);
+        if (!id) {
+          id = window.crypto?.randomUUID ? window.crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+          localStorage.setItem(SESSION_KEY, id);
+        }
+        return id;
       }
 
       function saveDraft() {

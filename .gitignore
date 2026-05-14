@@ -8,5 +8,6 @@ runs/
 *.log
 data/tutorial_response_training*.jsonl
 data/*robust*.jsonl
+runtime/
 .ipynb_checkpoints/
 dist/

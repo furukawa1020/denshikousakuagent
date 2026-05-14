@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -17,8 +18,11 @@ DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
-DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = ROOT / "runs" / "tutorial_response_50k_full"
-FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR = ROOT / "runs" / "tutorial_response"
+DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_robust_120k")))
+FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS = [
+    ROOT / "runs" / "tutorial_response_50k_full",
+    ROOT / "runs" / "tutorial_response",
+]
 _SERVICE_CACHE: dict[tuple[str, str, str], Any] = {}
 
 
@@ -55,7 +59,8 @@ def runtime_health() -> dict[str, Any]:
         "inventory_matcher": DEFAULT_INVENTORY_MATCHER_MODEL_DIR / "best.pt",
         "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
         "tutorial_response": DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
-        "tutorial_response_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
+        "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
+        "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
     }
     try:
         import torch
@@ -423,18 +428,19 @@ def tutorial_response_inference(payload: dict[str, Any]) -> dict[str, Any]:
     checkpoint = model_dir / "best.pt"
     tokenizer = model_dir / "tokenizer.json"
     if not checkpoint.exists() or not tokenizer.exists():
-        fallback_checkpoint = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt"
-        fallback_tokenizer = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "tokenizer.json"
-        if fallback_checkpoint.exists() and fallback_tokenizer.exists():
-            model_dir = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR
-            checkpoint = fallback_checkpoint
-            tokenizer = fallback_tokenizer
-        else:
+        fallback_dir = next(
+            (candidate for candidate in FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS if (candidate / "best.pt").exists() and (candidate / "tokenizer.json").exists()),
+            None,
+        )
+        if fallback_dir is None:
             return {
                 "available": False,
                 "reason": f"checkpoint not found: {checkpoint}",
                 "expectedCommand": "python -m ai_models.tutorial_response.train_tutorial_response --device cuda --amp",
             }
+        model_dir = fallback_dir
+        checkpoint = model_dir / "best.pt"
+        tokenizer = model_dir / "tokenizer.json"
 
     try:
         from ai_models.tutorial_response.infer_tutorial_response import TutorialResponseInference
