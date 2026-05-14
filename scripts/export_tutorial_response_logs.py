@@ -31,20 +31,38 @@ VALID_STAGES = {
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Export real tutorial response events into training JSONL records.")
     parser.add_argument("--logs", default="runtime/tutorial_response_events.jsonl")
+    parser.add_argument("--feedback-logs", default="runtime/tutorial_feedback_events.jsonl")
     parser.add_argument("--output", default="runtime/tutorial_response_real_records.jsonl")
     parser.add_argument("--min-answer-length", type=int, default=1)
     parser.add_argument("--max-records", type=int, default=0)
+    parser.add_argument("--positive-only", action="store_true", help="Keep only events that received positive feedback.")
+    parser.add_argument("--drop-negative", action="store_true", help="Drop events that received negative feedback.")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     events = load_jsonl(Path(args.logs))
+    feedback = feedback_index(load_jsonl(Path(args.feedback_logs)))
     records: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     skipped = 0
+    feedback_counts = {"up": 0, "down": 0, "none": 0}
     for event in events:
-        record = event_to_record(event, args.min_answer_length)
+        rating = feedback.get(event_key(event), "")
+        if rating == "up":
+            feedback_counts["up"] += 1
+        elif rating == "down":
+            feedback_counts["down"] += 1
+        else:
+            feedback_counts["none"] += 1
+        if args.positive_only and rating != "up":
+            skipped += 1
+            continue
+        if args.drop_negative and rating == "down":
+            skipped += 1
+            continue
+        record = event_to_record(event, args.min_answer_length, rating)
         if record is None:
             skipped += 1
             continue
@@ -64,6 +82,7 @@ def main() -> None:
         "events": len(events),
         "records": len(records),
         "skipped": skipped,
+        "feedback": feedback_counts,
     }, ensure_ascii=False, indent=2))
 
 
@@ -74,7 +93,7 @@ def load_jsonl(path: Path) -> list[dict[str, Any]]:
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def event_to_record(event: dict[str, Any], min_answer_length: int) -> dict[str, str] | None:
+def event_to_record(event: dict[str, Any], min_answer_length: int, rating: str = "") -> dict[str, str] | None:
     if event.get("schema") != "tutorial_response_event_v1":
         return None
     answer = str(event.get("answer") or "")
@@ -100,7 +119,28 @@ def event_to_record(event: dict[str, Any], min_answer_length: int) -> dict[str, 
     return {
         "source": build_source(source_payload),
         "target": target,
+        "feedback": rating or "none",
     }
+
+
+def feedback_index(events: list[dict[str, Any]]) -> dict[tuple[str, str, str], str]:
+    result: dict[tuple[str, str, str], str] = {}
+    for event in events:
+        if event.get("schema") != "tutorial_feedback_event_v1":
+            continue
+        rating = str(event.get("rating") or "")
+        if rating not in {"up", "down", "fix"}:
+            continue
+        result[event_key(event)] = rating
+    return result
+
+
+def event_key(event: dict[str, Any]) -> tuple[str, str, str]:
+    return (
+        str(event.get("sessionId") or "anonymous"),
+        str(event.get("question") or ""),
+        str(event.get("answer") or ""),
+    )
 
 
 def target_from_response(response: dict[str, Any], fallback_stage: str) -> str:

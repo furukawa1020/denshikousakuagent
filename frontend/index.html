@@ -807,6 +807,43 @@
         line-height: 1.6;
       }
 
+      .feedback-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .feedback-row .feedback-label {
+        color: #4b5d62;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .feedback-button {
+        border: 1px solid #c8d8d6;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.82);
+        color: #254146;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 850;
+        padding: 6px 10px;
+      }
+
+      .feedback-button:hover,
+      .feedback-button.active {
+        border-color: var(--accent);
+        background: #ffffff;
+        color: #0f4f4a;
+      }
+
+      .feedback-status {
+        color: #52676a;
+        font-size: 12px;
+      }
+
       .agent-companion {
         position: fixed;
         right: 104px;
@@ -2009,6 +2046,7 @@
             answerTutorialQuestion();
           });
         });
+        bindFeedbackButtons();
       }
 
       function renderStageStrip(currentStage) {
@@ -2127,6 +2165,9 @@
               nextStage: response.nextStage || "",
               suggestedChips: response.suggestedChips || [],
               confidence: response.confidence,
+              model: response.model || "",
+              mode: response.mode || "",
+              modelDir: response.modelDir || "",
             };
           }
         } catch (error) {
@@ -2246,6 +2287,12 @@
             <strong>${escapeHtml(reply.title)}</strong>
             <p>${escapeHtml(reply.body)}</p>
             ${reply.nextInstruction ? `<p><strong>次:</strong> ${escapeHtml(reply.nextInstruction)}</p>` : ""}
+            <div class="feedback-row">
+              <span class="feedback-label">この返答を学習に戻す</span>
+              <button class="feedback-button" type="button" data-rating="up">よかった</button>
+              <button class="feedback-button" type="button" data-rating="down">微妙</button>
+              <span class="feedback-status" data-feedback-status></span>
+            </div>
           </div>
         `;
       }
@@ -2257,10 +2304,45 @@
         nudgeMascot(mascotMode, reply.nextInstruction || reply.title || "次の一手を作りました。");
         if (existing) {
           existing.outerHTML = renderAgentReplyHtml(reply);
+          bindFeedbackButtons(reply);
           return;
         }
         const answerPanel = tutorial?.querySelector(".answer-panel");
         answerPanel?.insertAdjacentHTML("afterend", renderAgentReplyHtml(reply));
+        bindFeedbackButtons(reply);
+      }
+
+      function bindFeedbackButtons(reply = state.lastAgentReply) {
+        const panel = document.querySelector("#tutorial .agent-reply");
+        if (!panel || !reply) return;
+        panel.querySelectorAll("[data-rating]").forEach((button) => {
+          button.addEventListener("click", () => sendTutorialFeedback(button.dataset.rating, reply, button));
+        });
+      }
+
+      async function sendTutorialFeedback(rating, reply, button) {
+        const status = button.closest(".feedback-row")?.querySelector("[data-feedback-status]");
+        button.closest(".feedback-row")?.querySelectorAll(".feedback-button").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        if (status) status.textContent = "保存中...";
+        try {
+          const payload = requestPayload();
+          const result = await postJson("/api/tutorial/feedback", {
+            ...payload,
+            projectId: state.selectedProject,
+            question: state.lastAnsweredQuestion || state.latestQuestion || "",
+            answer: state.lastAnswer || "",
+            currentStage: document.querySelector("#stage").value,
+            nextStage: reply.nextStage || "",
+            rating,
+            reply,
+          }, 12000);
+          if (status) status.textContent = result?.ok ? "学習ログに反映しました" : "保存できませんでした";
+          nudgeMascot(rating === "up" ? "success" : "speaking", rating === "up" ? "ありがとう。良い返答として次の学習に戻します。" : "ありがとう。微妙な返答として改善ログに残します。");
+        } catch (error) {
+          console.warn("tutorial/feedback failed", error);
+          if (status) status.textContent = "あとで再送できます";
+        }
       }
 
       const FLOW_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "enclosure", "extension", "completion_log"];

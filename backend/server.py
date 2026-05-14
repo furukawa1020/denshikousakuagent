@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
 RUNTIME_ROOT = Path(os.environ.get("RUNTIME_ROOT", str(ROOT / "runtime")))
 TUTORIAL_EVENT_LOG = Path(os.environ.get("TUTORIAL_EVENT_LOG", str(RUNTIME_ROOT / "tutorial_response_events.jsonl")))
+TUTORIAL_FEEDBACK_LOG = Path(os.environ.get("TUTORIAL_FEEDBACK_LOG", str(RUNTIME_ROOT / "tutorial_feedback_events.jsonl")))
 MAX_TUTORIAL_LOG_TEXT = int(os.environ.get("MAX_TUTORIAL_LOG_TEXT", "1200"))
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
@@ -1532,19 +1533,66 @@ def clip_log_text(value: Any, limit: int = MAX_TUTORIAL_LOG_TEXT) -> str:
 
 
 def tutorial_log_stats() -> dict[str, Any]:
-    if not TUTORIAL_EVENT_LOG.exists():
-        return {"enabled": os.environ.get("DISABLE_TUTORIAL_LOGS") != "1", "path": str(TUTORIAL_EVENT_LOG), "events": 0, "bytes": 0}
-    events = 0
-    with TUTORIAL_EVENT_LOG.open(encoding="utf-8") as handle:
-        for _line in handle:
-            events += 1
+    response_stats = jsonl_file_stats(TUTORIAL_EVENT_LOG)
+    feedback_stats = jsonl_file_stats(TUTORIAL_FEEDBACK_LOG)
     return {
         "enabled": os.environ.get("DISABLE_TUTORIAL_LOGS") != "1",
         "path": str(TUTORIAL_EVENT_LOG),
-        "events": events,
-        "bytes": TUTORIAL_EVENT_LOG.stat().st_size,
-        "updatedAt": datetime.fromtimestamp(TUTORIAL_EVENT_LOG.stat().st_mtime, timezone.utc).isoformat(),
+        "events": response_stats["events"],
+        "bytes": response_stats["bytes"],
+        "updatedAt": response_stats.get("updatedAt"),
+        "feedbackPath": str(TUTORIAL_FEEDBACK_LOG),
+        "feedbackEvents": feedback_stats["events"],
+        "feedbackBytes": feedback_stats["bytes"],
+        "feedbackUpdatedAt": feedback_stats.get("updatedAt"),
     }
+
+
+def jsonl_file_stats(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"events": 0, "bytes": 0}
+    events = 0
+    with path.open(encoding="utf-8") as handle:
+        for _line in handle:
+            events += 1
+    return {
+        "events": events,
+        "bytes": path.stat().st_size,
+        "updatedAt": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+    }
+
+
+def tutorial_feedback(payload: dict[str, Any]) -> dict[str, Any]:
+    rating = str(payload.get("rating") or "").strip().lower()
+    if rating not in {"up", "down", "fix"}:
+        rating = "note"
+    event = {
+        "schema": "tutorial_feedback_event_v1",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "sessionId": clip_log_text(payload.get("sessionId") or "anonymous", 120),
+        "clientVersion": clip_log_text(payload.get("clientVersion") or "", 120),
+        "rating": rating,
+        "reason": clip_log_text(payload.get("reason") or "", 800),
+        "correction": clip_log_text(payload.get("correction") or "", 1600),
+        "projectId": clip_log_text(payload.get("projectId") or "", 120),
+        "currentStage": clip_log_text(payload.get("currentStage") or "", 120),
+        "nextStage": clip_log_text(payload.get("nextStage") or "", 120),
+        "question": clip_log_text(payload.get("question") or ""),
+        "answer": clip_log_text(payload.get("answer") or ""),
+        "reply": {
+            "kind": clip_log_text((payload.get("reply") or {}).get("kind") if isinstance(payload.get("reply"), dict) else "", 60),
+            "title": clip_log_text((payload.get("reply") or {}).get("title") if isinstance(payload.get("reply"), dict) else ""),
+            "body": clip_log_text((payload.get("reply") or {}).get("body") if isinstance(payload.get("reply"), dict) else ""),
+            "nextInstruction": clip_log_text((payload.get("reply") or {}).get("nextInstruction") if isinstance(payload.get("reply"), dict) else ""),
+            "model": clip_log_text((payload.get("reply") or {}).get("model") if isinstance(payload.get("reply"), dict) else "", 180),
+            "mode": clip_log_text((payload.get("reply") or {}).get("mode") if isinstance(payload.get("reply"), dict) else "", 180),
+            "modelDir": clip_log_text((payload.get("reply") or {}).get("modelDir") if isinstance(payload.get("reply"), dict) else "", 240),
+        },
+    }
+    TUTORIAL_FEEDBACK_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with TUTORIAL_FEEDBACK_LOG.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    return {"ok": True, "rating": rating, "stats": tutorial_log_stats()}
 
 
 def classify_free_answer(answer: str) -> str:
@@ -1917,6 +1965,8 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             self.send_json(tutorial_agent_inference(payload))
         elif route == "/api/tutorial/respond":
             self.send_json(tutorial_free_response(payload))
+        elif route == "/api/tutorial/feedback":
+            self.send_json(tutorial_feedback(payload))
         elif route in {"/api/projects/generate", "/api/projects/refine"}:
             self.send_json(project_bundle(payload))
         elif route in {"/api/tutorial/start", "/api/tutorial/next", "/api/tutorial/answer"}:
