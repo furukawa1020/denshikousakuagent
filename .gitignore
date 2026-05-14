@@ -6,5 +6,7 @@ runs/
 *.pt
 *.pth
 *.log
+data/tutorial_response_training*.jsonl
+data/*robust*.jsonl
 .ipynb_checkpoints/
 dist/
