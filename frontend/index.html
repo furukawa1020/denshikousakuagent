@@ -1788,6 +1788,7 @@
         const inventory = document.querySelector("#inventory").value.trim();
         const currentStage = document.querySelector("#stage").value;
         const symptom = document.querySelector("#symptom").value;
+        saveDraft();
         return {
           text: `${text} ${state.selectedEntry}`,
           inventory,
@@ -1798,6 +1799,45 @@
           device: "cuda",
           topK: 3,
         };
+      }
+
+      function saveDraft() {
+        const draft = {
+          intent: document.querySelector("#intent")?.value || "",
+          budget: document.querySelector("#budget")?.value || "",
+          board: document.querySelector("#board")?.value || "",
+          inventory: document.querySelector("#inventory")?.value || "",
+          stage: document.querySelector("#stage")?.value || "",
+          symptom: document.querySelector("#symptom")?.value || "",
+          selectedEntry: state.selectedEntry,
+          selectedProject: state.selectedProject,
+        };
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      }
+
+      function restoreDraft() {
+        try {
+          const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+          if (!draft) return;
+          if (draft.intent) document.querySelector("#intent").value = draft.intent;
+          if (draft.budget) document.querySelector("#budget").value = draft.budget;
+          if (draft.board) document.querySelector("#board").value = draft.board;
+          if (draft.inventory) document.querySelector("#inventory").value = draft.inventory;
+          if (draft.stage) document.querySelector("#stage").value = draft.stage;
+          if (draft.symptom) document.querySelector("#symptom").value = draft.symptom;
+          state.selectedEntry = draft.selectedEntry || state.selectedEntry;
+          state.selectedProject = draft.selectedProject || state.selectedProject;
+          setProgress("前回の入力を復元しました。続きをそのまま生成できます。");
+        } catch {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+      }
+
+      function wireDraftSaving() {
+        ["#intent", "#budget", "#board", "#inventory", "#stage", "#symptom"].forEach((selector) => {
+          document.querySelector(selector)?.addEventListener("input", saveDraft);
+          document.querySelector(selector)?.addEventListener("change", saveDraft);
+        });
       }
 
       async function postJson(url, body, timeoutMs = 45000) {
