@@ -17,6 +17,8 @@ DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
+DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = ROOT / "runs" / "tutorial_response_50k_full"
+FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR = ROOT / "runs" / "tutorial_response"
 _SERVICE_CACHE: dict[tuple[str, str, str], Any] = {}
 
 
@@ -52,6 +54,8 @@ def runtime_health() -> dict[str, Any]:
         "circuit_validator": DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR / "best.pt",
         "inventory_matcher": DEFAULT_INVENTORY_MATCHER_MODEL_DIR / "best.pt",
         "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
+        "tutorial_response": DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
+        "tutorial_response_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
     }
     try:
         import torch
@@ -409,5 +413,53 @@ def tutorial_agent_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"TutorialAgent inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def tutorial_response_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    explicit_model_dir = payload.get("responseModelDir") or payload.get("modelDir")
+    model_dir = Path(explicit_model_dir) if explicit_model_dir else DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        fallback_checkpoint = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt"
+        fallback_tokenizer = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR / "tokenizer.json"
+        if fallback_checkpoint.exists() and fallback_tokenizer.exists():
+            model_dir = FALLBACK_TUTORIAL_RESPONSE_MODEL_DIR
+            checkpoint = fallback_checkpoint
+            tokenizer = fallback_tokenizer
+        else:
+            return {
+                "available": False,
+                "reason": f"checkpoint not found: {checkpoint}",
+                "expectedCommand": "python -m ai_models.tutorial_response.train_tutorial_response --device cuda --amp",
+            }
+
+    try:
+        from ai_models.tutorial_response.infer_tutorial_response import TutorialResponseInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialResponse import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        device = requested_device(payload)
+        service = cached_service(
+            "tutorial_response",
+            model_dir,
+            device,
+            lambda: TutorialResponseInference(model_dir=model_dir, device=device),
+        )
+        return {
+            **service.predict(payload),
+            "modelDir": str(model_dir),
+        }
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialResponse inference failed: {exc}",
             "modelDir": str(model_dir),
         }
