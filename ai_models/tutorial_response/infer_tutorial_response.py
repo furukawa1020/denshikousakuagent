@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -94,7 +95,8 @@ def normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def parse_generated(text: str) -> dict[str, str]:
     result: dict[str, str] = {}
     current_key = ""
-    for raw_line in text.replace("。stage:", "。\nstage:").splitlines():
+    normalized = re.sub(r"(style:|title:|body:|next:|stage:)", r"\n\1", text)
+    for raw_line in normalized.splitlines():
         line = raw_line.strip()
         if not line:
             continue
@@ -127,4 +129,3 @@ def parse_generated(text: str) -> dict[str, str]:
 
 if __name__ == "__main__":
     main()
-
