@@ -22,6 +22,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data", default="data/tutorial_response_training.jsonl")
     parser.add_argument("--extra-data", action="append", default=[], help="Additional JSONL records, such as exported real interaction logs.")
     parser.add_argument("--extra-weight", type=int, default=2, help="Repeat each extra-data record this many times during training.")
+    parser.add_argument("--keep-negative-extra", action="store_true", help="Keep negatively rated extra records instead of skipping them.")
+    parser.add_argument("--feedback-up-multiplier", type=int, default=2)
+    parser.add_argument("--feedback-fix-multiplier", type=int, default=5)
     parser.add_argument("--output", default="runs/tutorial_response")
     parser.add_argument("--samples", type=int, default=14000)
     parser.add_argument("--robust-ratio", type=float, default=0.7)
@@ -50,7 +53,13 @@ def main() -> None:
     if args.regenerate or not data_path.exists():
         write_jsonl(data_path, generate_records(args.samples, seed=args.seed, robust_ratio=args.robust_ratio))
     records = load_jsonl(data_path)
-    extra_records = load_extra_records(args.extra_data, max(1, args.extra_weight))
+    extra_records = load_extra_records(
+        args.extra_data,
+        max(1, args.extra_weight),
+        keep_negative=args.keep_negative_extra,
+        up_multiplier=max(1, args.feedback_up_multiplier),
+        fix_multiplier=max(1, args.feedback_fix_multiplier),
+    )
     records.extend(extra_records)
     print(json.dumps({"event": "data_loaded", "records": len(records), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
     tokenizer = MakerTokenizer(domain_terms=[])
@@ -104,9 +113,10 @@ def main() -> None:
     (output_dir / "metrics.json").write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def load_extra_records(paths: list[str], weight: int) -> list[dict[str, str]]:
+def load_extra_records(paths: list[str], weight: int, keep_negative: bool = False, up_multiplier: int = 2, fix_multiplier: int = 5) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
+    feedback_counts = {"up": 0, "down": 0, "fix": 0, "none": 0}
     for raw_path in paths:
         path = Path(raw_path)
         if not path.exists():
@@ -118,14 +128,28 @@ def load_extra_records(paths: list[str], weight: int) -> list[dict[str, str]]:
             target = str(record.get("target") or "")
             if not source or not target:
                 continue
+            feedback = str(record.get("feedback") or "none")
+            if feedback == "down" and not keep_negative:
+                feedback_counts["down"] += 1
+                continue
             key = (source, target)
             if key in seen:
                 continue
             seen.add(key)
-            for _ in range(weight):
+            repeat = feedback_repeat(feedback, weight, up_multiplier, fix_multiplier)
+            feedback_counts[feedback if feedback in feedback_counts else "none"] += 1
+            for _ in range(repeat):
                 records.append({"source": source, "target": target})
-        print(json.dumps({"event": "extra_data_loaded", "path": str(path), "unique_records": len(seen), "weighted_records": len(records)}, ensure_ascii=False), flush=True)
+        print(json.dumps({"event": "extra_data_loaded", "path": str(path), "unique_records": len(seen), "weighted_records": len(records), "feedback": feedback_counts}, ensure_ascii=False), flush=True)
     return records
+
+
+def feedback_repeat(feedback: str, weight: int, up_multiplier: int, fix_multiplier: int) -> int:
+    if feedback == "fix":
+        return weight * fix_multiplier
+    if feedback == "up":
+        return weight * up_multiplier
+    return weight
 
 
 def run_epoch(
