@@ -2132,6 +2132,32 @@
         run();
       }
 
+      function isNaturalFeedback(text) {
+        if (!state.lastAgentReply) return false;
+        const normalized = String(text || "").replace(/\s/g, "").toLowerCase();
+        const aboutReply = ["今の返答", "返答", "回答", "エージェント", "チカ", "ai", "agent"].some((word) => normalized.includes(word));
+        const feedbackWords = ["違う", "ちがう", "微妙", "変", "おかしい", "そうじゃない", "よかった", "いい感じ", "助かった", "こう返して", "こうしてほしい", "直して", "修正"].some((word) => normalized.includes(word));
+        const directCorrection = ["こう返して", "こうしてほしい", "そうじゃない", "今の違う", "今の返答ちがう", "返答ちがう"].some((word) => normalized.includes(word));
+        return directCorrection || (aboutReply && feedbackWords);
+      }
+
+      function naturalFeedbackRating(text) {
+        const normalized = String(text || "").replace(/\s/g, "").toLowerCase();
+        if (["よかった", "いい感じ", "助かった", "それでいい", "ナイス", "good"].some((word) => normalized.includes(word))) return "up";
+        if (["こう返して", "こうしてほしい", "直して", "修正", "次は", "本当は"].some((word) => normalized.includes(word))) return "fix";
+        return "down";
+      }
+
+      async function handleNaturalFeedback(text) {
+        const reply = state.lastAgentReply;
+        const rating = naturalFeedbackRating(text);
+        setProgress("今の一言を学習フィードバックとして保存しています。");
+        await sendTutorialFeedback(rating, reply, {
+          correction: rating === "fix" ? text : "",
+          reason: text,
+        });
+      }
+
       async function requestAgentReply(question, answer, structuredMessage = "") {
         const payload = requestPayload();
         try {
