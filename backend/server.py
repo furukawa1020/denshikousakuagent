@@ -1545,6 +1545,7 @@ def tutorial_log_stats() -> dict[str, Any]:
         "feedbackEvents": feedback_stats["events"],
         "feedbackBytes": feedback_stats["bytes"],
         "feedbackUpdatedAt": feedback_stats.get("updatedAt"),
+        "feedbackRatings": feedback_rating_counts(TUTORIAL_FEEDBACK_LOG),
     }
 
 
@@ -1560,6 +1561,22 @@ def jsonl_file_stats(path: Path) -> dict[str, Any]:
         "bytes": path.stat().st_size,
         "updatedAt": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
     }
+
+
+def feedback_rating_counts(path: Path) -> dict[str, int]:
+    counts = {"up": 0, "down": 0, "fix": 0, "note": 0}
+    if not path.exists():
+        return counts
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                rating = str(json.loads(line).get("rating") or "note")
+            except json.JSONDecodeError:
+                rating = "note"
+            counts[rating if rating in counts else "note"] += 1
+    return counts
 
 
 def tutorial_feedback(payload: dict[str, Any]) -> dict[str, Any]:
