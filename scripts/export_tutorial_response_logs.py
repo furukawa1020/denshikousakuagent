@@ -37,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-records", type=int, default=0)
     parser.add_argument("--positive-only", action="store_true", help="Keep only events that received positive feedback.")
     parser.add_argument("--drop-negative", action="store_true", help="Drop events that received negative feedback.")
+    parser.add_argument("--include-test-sessions", action="store_true", help="Include smoke/deploy test sessions in the export.")
     return parser.parse_args()
 
 
@@ -49,6 +50,9 @@ def main() -> None:
     skipped = 0
     feedback_counts = {"up": 0, "down": 0, "none": 0}
     for event in events:
+        if not args.include_test_sessions and is_test_session(event):
+            skipped += 1
+            continue
         rating = feedback.get(event_key(event), "")
         if rating == "up":
             feedback_counts["up"] += 1
@@ -141,6 +145,12 @@ def event_key(event: dict[str, Any]) -> tuple[str, str, str]:
         str(event.get("question") or ""),
         str(event.get("answer") or ""),
     )
+
+
+def is_test_session(event: dict[str, Any]) -> bool:
+    session_id = str(event.get("sessionId") or "").lower()
+    client_version = str(event.get("clientVersion") or "").lower()
+    return any(token in session_id or token in client_version for token in ["smoke", "deploy-test", "deploy-smoke", "local-test"])
 
 
 def target_from_response(response: dict[str, Any], fallback_stage: str) -> str:
