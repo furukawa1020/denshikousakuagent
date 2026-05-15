@@ -2317,7 +2317,12 @@
               <span class="feedback-label">この返答を学習に戻す</span>
               <button class="feedback-button" type="button" data-rating="up">よかった</button>
               <button class="feedback-button" type="button" data-rating="down">微妙</button>
+              <button class="feedback-button" type="button" data-rating="fix">こう返してほしい</button>
               <span class="feedback-status" data-feedback-status></span>
+            </div>
+            <div class="feedback-correction" hidden>
+              <textarea data-feedback-correction placeholder="例：今の回答なら、次はコードを書き込む手順へ進む、と返してほしい"></textarea>
+              <button class="feedback-button" type="button" data-send-correction>訂正文を保存</button>
             </div>
           </div>
         `;
