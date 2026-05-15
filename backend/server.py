@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, tutorial_response_inference, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, tutorial_answer_classifier_inference, tutorial_response_inference, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1315,7 +1315,17 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     answer = str(payload.get("answer") or payload.get("text") or "")
     current_stage = str(payload.get("currentStage") or payload.get("stage") or "orient")
     project = get_project(payload.get("projectId"))
-    kind = classify_free_answer(answer)
+    fallback_kind = classify_free_answer(answer)
+    classifier_payload = {
+        **payload,
+        "projectId": project.id,
+        "projectTitle": project.title,
+        "question": question,
+        "answer": answer,
+        "currentStage": current_stage,
+    }
+    answer_classifier = tutorial_answer_classifier_inference(classifier_payload)
+    kind = str(answer_classifier.get("kind") or fallback_kind) if answer_classifier.get("available") else fallback_kind
     next_stage = next_stage_from_free_answer(question, answer, current_stage, kind)
     reply = compose_tutorial_reply(project, question, answer, current_stage, next_stage, kind, payload)
 
@@ -1326,6 +1336,9 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "question": question,
         "answer": answer,
         "currentStage": current_stage,
+        "fallbackStage": next_stage,
+        "interpretedKind": kind,
+        "candidateCount": payload.get("candidateCount") or 4,
     }
     neural = tutorial_response_inference(neural_payload)
     if neural.get("available"):
@@ -1358,18 +1371,25 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             "question": question,
             "answer": answer,
             "interpreted": kind,
+            "interpretedBy": "neural_answer_classifier" if answer_classifier.get("available") else "fallback",
             "kind": presentation_kind,
             "title": (neural.get("title") if use_neural_text else "") or reply["title"],
             "body": (neural.get("body") if use_neural_text else "") or reply["body"],
             "nextInstruction": (neural.get("nextInstruction") if use_neural_text else "") or reply["nextInstruction"],
             "nextStage": neural_stage,
+            "alignmentScore": neural.get("alignmentScore"),
+            "candidateCount": neural.get("candidateCount"),
             "suggestedChips": reply["suggestedChips"],
             "confidence": max(confidence_for_free_answer(kind, question, answer), 0.72),
             "tutorialPreview": tutorial if tutorial.get("available") else None,
+            "answerClassifier": answer_classifier if answer_classifier.get("available") else None,
             "neural": {
                 "device": neural.get("device"),
                 "metrics": neural.get("metrics"),
                 "generated": neural.get("generated"),
+                "alignmentScore": neural.get("alignmentScore"),
+                "candidateCount": neural.get("candidateCount"),
+                "candidates": neural.get("candidates"),
             },
         }
         log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
@@ -1401,6 +1421,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "question": question,
         "answer": answer,
         "interpreted": kind,
+        "interpretedBy": "neural_answer_classifier" if answer_classifier.get("available") else "fallback",
         "kind": reply["kind"],
         "title": reply["title"],
         "body": reply["body"],
@@ -1409,6 +1430,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "suggestedChips": reply["suggestedChips"],
         "confidence": confidence_for_free_answer(kind, question, answer),
         "tutorialPreview": tutorial if tutorial.get("available") else None,
+        "answerClassifier": answer_classifier if answer_classifier.get("available") else None,
     }
     log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
     return result

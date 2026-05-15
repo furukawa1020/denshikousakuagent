@@ -19,6 +19,7 @@ DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
 DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_robust_120k")))
+DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier")))
 FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS = [
     ROOT / "runs" / "tutorial_response_50k_full",
     ROOT / "runs" / "tutorial_response",
@@ -59,6 +60,7 @@ def runtime_health() -> dict[str, Any]:
         "inventory_matcher": DEFAULT_INVENTORY_MATCHER_MODEL_DIR / "best.pt",
         "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
         "tutorial_response": DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
+        "tutorial_answer_classifier": DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR / "best.pt",
         "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
         "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
     }
@@ -467,5 +469,46 @@ def tutorial_response_inference(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "available": False,
             "reason": f"TutorialResponse inference failed: {exc}",
+            "modelDir": str(model_dir),
+        }
+
+
+def tutorial_answer_classifier_inference(payload: dict[str, Any]) -> dict[str, Any]:
+    explicit_model_dir = payload.get("answerClassifierModelDir")
+    model_dir = Path(explicit_model_dir) if explicit_model_dir else DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR
+    checkpoint = model_dir / "best.pt"
+    tokenizer = model_dir / "tokenizer.json"
+    if not checkpoint.exists() or not tokenizer.exists():
+        return {
+            "available": False,
+            "reason": f"checkpoint not found: {checkpoint}",
+            "expectedCommand": "python -m ai_models.tutorial_response.train_answer_classifier --device cuda --amp",
+        }
+
+    try:
+        from ai_models.tutorial_response.infer_answer_classifier import TutorialAnswerClassifierInference
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialAnswerClassifier import failed: {exc}",
+            "expectedInstall": "pip install -r requirements-ml.txt",
+        }
+
+    try:
+        device = requested_device(payload)
+        service = cached_service(
+            "tutorial_answer_classifier",
+            model_dir,
+            device,
+            lambda: TutorialAnswerClassifierInference(model_dir=model_dir, device=device),
+        )
+        return {
+            **service.predict(payload),
+            "modelDir": str(model_dir),
+        }
+    except Exception as exc:  # pragma: no cover
+        return {
+            "available": False,
+            "reason": f"TutorialAnswerClassifier inference failed: {exc}",
             "modelDir": str(model_dir),
         }
