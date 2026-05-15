@@ -821,53 +821,9 @@
         font-weight: 800;
       }
 
-      .feedback-button {
-        border: 1px solid #c8d8d6;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.82);
-        color: #254146;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 850;
-        padding: 6px 10px;
-      }
-
-      .feedback-button:hover,
-      .feedback-button.active {
-        border-color: var(--accent);
-        background: #ffffff;
-        color: #0f4f4a;
-      }
-
       .feedback-status {
         color: #52676a;
         font-size: 12px;
-      }
-
-      .feedback-correction {
-        display: grid;
-        gap: 8px;
-        margin-top: 6px;
-      }
-
-      .feedback-correction[hidden] {
-        display: none;
-      }
-
-      .feedback-correction textarea {
-        width: 100%;
-        min-height: 74px;
-        resize: vertical;
-        border: 1px solid #c8d8d6;
-        border-radius: 8px;
-        padding: 9px 10px;
-        color: var(--ink);
-        font: inherit;
-        line-height: 1.45;
-      }
-
-      .feedback-correction button {
-        justify-self: start;
       }
 
       .agent-companion {
@@ -2072,7 +2028,6 @@
             answerTutorialQuestion();
           });
         });
-        bindFeedbackButtons();
       }
 
       function renderStageStrip(currentStage) {
@@ -2148,6 +2103,12 @@
           setProgress("次の質問への答えを1行で入れてください。分からない場合は「分からない」で進められます。");
           nudgeMascot("warn", "ここは一言で大丈夫です。「分からない」でも次の確認に進めます。");
           box?.focus();
+          return;
+        }
+
+        if (isNaturalFeedback(answer)) {
+          await handleNaturalFeedback(answer);
+          box.value = "";
           return;
         }
 
@@ -2314,15 +2275,8 @@
             <p>${escapeHtml(reply.body)}</p>
             ${reply.nextInstruction ? `<p><strong>次:</strong> ${escapeHtml(reply.nextInstruction)}</p>` : ""}
             <div class="feedback-row">
-              <span class="feedback-label">この返答を学習に戻す</span>
-              <button class="feedback-button" type="button" data-rating="up">よかった</button>
-              <button class="feedback-button" type="button" data-rating="down">微妙</button>
-              <button class="feedback-button" type="button" data-rating="fix">こう返してほしい</button>
+              <span class="feedback-label">返答が違う時は、回答欄に「今の返答ちがう、こう返して」と書くと学習します</span>
               <span class="feedback-status" data-feedback-status></span>
-            </div>
-            <div class="feedback-correction" hidden>
-              <textarea data-feedback-correction placeholder="例：今の回答なら、次はコードを書き込む手順へ進む、と返してほしい"></textarea>
-              <button class="feedback-button" type="button" data-send-correction>訂正文を保存</button>
             </div>
           </div>
         `;
@@ -2335,47 +2289,15 @@
         nudgeMascot(mascotMode, reply.nextInstruction || reply.title || "次の一手を作りました。");
         if (existing) {
           existing.outerHTML = renderAgentReplyHtml(reply);
-          bindFeedbackButtons(reply);
           return;
         }
         const answerPanel = tutorial?.querySelector(".answer-panel");
         answerPanel?.insertAdjacentHTML("afterend", renderAgentReplyHtml(reply));
-        bindFeedbackButtons(reply);
       }
 
-      function bindFeedbackButtons(reply = state.lastAgentReply) {
+      async function sendTutorialFeedback(rating, reply, extra = {}) {
         const panel = document.querySelector("#tutorial .agent-reply");
-        if (!panel || !reply) return;
-        panel.querySelectorAll("[data-rating]").forEach((button) => {
-          button.addEventListener("click", () => {
-            const rating = button.dataset.rating;
-            if (rating === "fix") {
-              const correction = panel.querySelector(".feedback-correction");
-              correction.hidden = false;
-              correction.querySelector("textarea")?.focus();
-              const status = panel.querySelector("[data-feedback-status]");
-              if (status) status.textContent = "直したい返答を書けます";
-              return;
-            }
-            sendTutorialFeedback(rating, reply, button);
-          });
-        });
-        panel.querySelector("[data-send-correction]")?.addEventListener("click", (event) => {
-          const correction = panel.querySelector("[data-feedback-correction]")?.value.trim() || "";
-          sendTutorialFeedback("fix", reply, event.currentTarget, { correction });
-        });
-      }
-
-      async function sendTutorialFeedback(rating, reply, button, extra = {}) {
-        const panel = button.closest(".agent-reply");
         const status = panel?.querySelector("[data-feedback-status]");
-        if (rating === "fix" && !extra.correction) {
-          if (status) status.textContent = "訂正文を一言入れてください";
-          panel?.querySelector("[data-feedback-correction]")?.focus();
-          return;
-        }
-        panel?.querySelectorAll(".feedback-button").forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
         if (status) status.textContent = "保存中...";
         try {
           const payload = requestPayload();
@@ -2388,6 +2310,7 @@
             nextStage: reply.nextStage || "",
             rating,
             correction: extra.correction || "",
+            reason: extra.reason || "",
             reply,
           }, 12000);
           if (status) status.textContent = result?.ok ? "学習ログに反映しました" : "保存できませんでした";
