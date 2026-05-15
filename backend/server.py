@@ -16,7 +16,7 @@ from ai_bridge import circuit_validator_inference, inventory_matcher_inference, 
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND_ROOT = ROOT / "frontend"
-RUNTIME_ROOT = Path(os.environ.get("RUNTIME_ROOT", str(ROOT / "runtime")))
+RUNTIME_ROOT = Path(os.environ.get("RUNTIME_ROOT", str(Path("/data") / "lchika-runtime" if Path("/data").exists() and os.access("/data", os.W_OK) else ROOT / "runtime")))
 TUTORIAL_EVENT_LOG = Path(os.environ.get("TUTORIAL_EVENT_LOG", str(RUNTIME_ROOT / "tutorial_response_events.jsonl")))
 TUTORIAL_FEEDBACK_LOG = Path(os.environ.get("TUTORIAL_FEEDBACK_LOG", str(RUNTIME_ROOT / "tutorial_feedback_events.jsonl")))
 MAX_TUTORIAL_LOG_TEXT = int(os.environ.get("MAX_TUTORIAL_LOG_TEXT", "1200"))
@@ -1546,6 +1546,7 @@ def tutorial_log_stats() -> dict[str, Any]:
         "feedbackBytes": feedback_stats["bytes"],
         "feedbackUpdatedAt": feedback_stats.get("updatedAt"),
         "feedbackRatings": feedback_rating_counts(TUTORIAL_FEEDBACK_LOG),
+        "exportEnabled": bool(os.environ.get("TUTORIAL_LOG_EXPORT_TOKEN")),
     }
 
 
@@ -1577,6 +1578,47 @@ def feedback_rating_counts(path: Path) -> dict[str, int]:
                 rating = "note"
             counts[rating if rating in counts else "note"] += 1
     return counts
+
+
+def tutorial_log_export(params: dict[str, list[str]]) -> dict[str, Any]:
+    expected_token = os.environ.get("TUTORIAL_LOG_EXPORT_TOKEN")
+    provided_token = (params.get("token") or [""])[0]
+    if not expected_token:
+        return {"ok": False, "reason": "log export disabled; set TUTORIAL_LOG_EXPORT_TOKEN"}
+    if provided_token != expected_token:
+        return {"ok": False, "reason": "invalid token"}
+    limit = safe_int((params.get("limit") or ["500"])[0], 500, 1, 5000)
+    return {
+        "ok": True,
+        "stats": tutorial_log_stats(),
+        "responseEvents": read_jsonl_tail(TUTORIAL_EVENT_LOG, limit),
+        "feedbackEvents": read_jsonl_tail(TUTORIAL_FEEDBACK_LOG, limit),
+    }
+
+
+def read_jsonl_tail(path: Path, limit: int) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+            if len(rows) > limit:
+                rows = rows[-limit:]
+    return rows
+
+
+def safe_int(value: Any, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimum, min(maximum, parsed))
 
 
 def tutorial_feedback(payload: dict[str, Any]) -> dict[str, Any]:
@@ -1937,6 +1979,9 @@ class MakerGraphHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/tutorial/log-stats":
             self.send_json(tutorial_log_stats())
+            return
+        if parsed.path == "/api/tutorial/export-logs":
+            self.send_json(tutorial_log_export(parse_qs(parsed.query)))
             return
         if parsed.path == "/api/skills/me":
             self.send_json(skill_state())
