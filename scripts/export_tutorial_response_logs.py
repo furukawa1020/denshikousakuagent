@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--logs", default="runtime/tutorial_response_events.jsonl")
     parser.add_argument("--feedback-logs", default="runtime/tutorial_feedback_events.jsonl")
     parser.add_argument("--output", default="runtime/tutorial_response_real_records.jsonl")
+    parser.add_argument("--preference-output", default="runtime/tutorial_response_preferences.jsonl")
     parser.add_argument("--min-answer-length", type=int, default=1)
     parser.add_argument("--max-records", type=int, default=0)
     parser.add_argument("--positive-only", action="store_true", help="Keep only events that received positive feedback.")
@@ -46,7 +47,9 @@ def main() -> None:
     events = load_jsonl(Path(args.logs))
     feedback = feedback_index(load_jsonl(Path(args.feedback_logs)))
     records: list[dict[str, str]] = []
+    preference_records: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
+    seen_preferences: set[tuple[str, str, str]] = set()
     skipped = 0
     feedback_counts = {"up": 0, "down": 0, "fix": 0, "none": 0}
     for event in events:
@@ -69,6 +72,12 @@ def main() -> None:
         if record is None:
             skipped += 1
             continue
+        preference_record = event_to_preference_record(event, feedback_event, args.min_answer_length)
+        if preference_record is not None:
+            preference_key = (preference_record["source"], preference_record["chosen"], preference_record["rejected"])
+            if preference_key not in seen_preferences:
+                seen_preferences.add(preference_key)
+                preference_records.append(preference_record)
         key = (record["source"], record["target"])
         if key in seen:
             skipped += 1
@@ -78,12 +87,15 @@ def main() -> None:
         if args.max_records and len(records) >= args.max_records:
             break
     write_jsonl(args.output, records)
+    write_jsonl(args.preference_output, preference_records)
     print(json.dumps({
         "event": "tutorial_logs_exported",
         "logs": args.logs,
         "output": args.output,
+        "preferenceOutput": args.preference_output,
         "events": len(events),
         "records": len(records),
+        "preferenceRecords": len(preference_records),
         "skipped": skipped,
         "feedback": feedback_counts,
     }, ensure_ascii=False, indent=2))
@@ -128,6 +140,33 @@ def event_to_record(event: dict[str, Any], min_answer_length: int, feedback_even
         "target": target,
         "feedback": rating or "none",
     }
+
+
+def event_to_preference_record(event: dict[str, Any], feedback_event: dict[str, Any] | None, min_answer_length: int) -> dict[str, str] | None:
+    feedback_event = feedback_event or {}
+    if feedback_rating(feedback_event) != "fix":
+        return None
+    correction_target = target_from_feedback(feedback_event, event)
+    rejected_target = original_target(event)
+    if not correction_target or not rejected_target or correction_target == rejected_target:
+        return None
+    base = event_to_record(event, min_answer_length, {})
+    if base is None:
+        return None
+    return {
+        "source": base["source"],
+        "chosen": correction_target,
+        "rejected": rejected_target,
+        "feedback": "fix",
+    }
+
+
+def original_target(event: dict[str, Any]) -> str:
+    target = str(event.get("target") or "").strip()
+    if target:
+        return target
+    source_payload = dict(event.get("sourcePayload") or {})
+    return target_from_response(event.get("response") or {}, str(source_payload.get("currentStage") or event.get("currentStage") or "orient"))
 
 
 def feedback_index(events: list[dict[str, Any]]) -> dict[tuple[str, str, str], dict[str, Any]]:
