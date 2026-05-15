@@ -2347,13 +2347,34 @@
         const panel = document.querySelector("#tutorial .agent-reply");
         if (!panel || !reply) return;
         panel.querySelectorAll("[data-rating]").forEach((button) => {
-          button.addEventListener("click", () => sendTutorialFeedback(button.dataset.rating, reply, button));
+          button.addEventListener("click", () => {
+            const rating = button.dataset.rating;
+            if (rating === "fix") {
+              const correction = panel.querySelector(".feedback-correction");
+              correction.hidden = false;
+              correction.querySelector("textarea")?.focus();
+              const status = panel.querySelector("[data-feedback-status]");
+              if (status) status.textContent = "直したい返答を書けます";
+              return;
+            }
+            sendTutorialFeedback(rating, reply, button);
+          });
+        });
+        panel.querySelector("[data-send-correction]")?.addEventListener("click", (event) => {
+          const correction = panel.querySelector("[data-feedback-correction]")?.value.trim() || "";
+          sendTutorialFeedback("fix", reply, event.currentTarget, { correction });
         });
       }
 
-      async function sendTutorialFeedback(rating, reply, button) {
-        const status = button.closest(".feedback-row")?.querySelector("[data-feedback-status]");
-        button.closest(".feedback-row")?.querySelectorAll(".feedback-button").forEach((item) => item.classList.remove("active"));
+      async function sendTutorialFeedback(rating, reply, button, extra = {}) {
+        const panel = button.closest(".agent-reply");
+        const status = panel?.querySelector("[data-feedback-status]");
+        if (rating === "fix" && !extra.correction) {
+          if (status) status.textContent = "訂正文を一言入れてください";
+          panel?.querySelector("[data-feedback-correction]")?.focus();
+          return;
+        }
+        panel?.querySelectorAll(".feedback-button").forEach((item) => item.classList.remove("active"));
         button.classList.add("active");
         if (status) status.textContent = "保存中...";
         try {
@@ -2366,10 +2387,11 @@
             currentStage: document.querySelector("#stage").value,
             nextStage: reply.nextStage || "",
             rating,
+            correction: extra.correction || "",
             reply,
           }, 12000);
           if (status) status.textContent = result?.ok ? "学習ログに反映しました" : "保存できませんでした";
-          nudgeMascot(rating === "up" ? "success" : "speaking", rating === "up" ? "ありがとう。良い返答として次の学習に戻します。" : "ありがとう。微妙な返答として改善ログに残します。");
+          nudgeMascot(rating === "up" ? "success" : "speaking", rating === "up" ? "ありがとう。良い返答として次の学習に戻します。" : "ありがとう。改善ログとして次の学習に戻します。");
         } catch (error) {
           console.warn("tutorial/feedback failed", error);
           if (status) status.textContent = "あとで再送できます";
