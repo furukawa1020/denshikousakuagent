@@ -844,6 +844,32 @@
         font-size: 12px;
       }
 
+      .feedback-correction {
+        display: grid;
+        gap: 8px;
+        margin-top: 6px;
+      }
+
+      .feedback-correction[hidden] {
+        display: none;
+      }
+
+      .feedback-correction textarea {
+        width: 100%;
+        min-height: 74px;
+        resize: vertical;
+        border: 1px solid #c8d8d6;
+        border-radius: 8px;
+        padding: 9px 10px;
+        color: var(--ink);
+        font: inherit;
+        line-height: 1.45;
+      }
+
+      .feedback-correction button {
+        justify-self: start;
+      }
+
       .agent-companion {
         position: fixed;
         right: 104px;
