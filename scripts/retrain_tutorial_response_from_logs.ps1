@@ -2,6 +2,7 @@ param(
   [string]$Logs = "runtime\tutorial_response_events.jsonl",
   [string]$FeedbackLogs = "runtime\tutorial_feedback_events.jsonl",
   [string]$Export = "runtime\tutorial_response_real_records.jsonl",
+  [string]$PreferenceExport = "runtime\tutorial_response_preferences.jsonl",
   [string]$BaseData = "data\tutorial_response_training_robust_120k.jsonl",
   [string]$Output = "runs\tutorial_response_robust_real",
   [int]$Epochs = 3,
@@ -21,6 +22,7 @@ Write-Host "Exporting real tutorial response records..."
   --logs $Logs `
   --feedback-logs $FeedbackLogs `
   --output $Export `
+  --preference-output $PreferenceExport `
   --drop-negative
 
 $device = if ($Cpu) { "cpu" } else { "cuda" }
@@ -33,6 +35,7 @@ Write-Host "Training tutorial response model on $device..."
 & $python -m ai_models.tutorial_response.train_tutorial_response `
   --data $BaseData `
   --extra-data $Export `
+  --preference-data $PreferenceExport `
   --extra-weight $ExtraWeight `
   --output $Output `
   --epochs $Epochs `
