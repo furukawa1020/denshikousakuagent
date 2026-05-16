@@ -1325,8 +1325,8 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "currentStage": current_stage,
     }
     answer_classifier = tutorial_answer_classifier_inference(classifier_payload)
-    kind = str(answer_classifier.get("kind") or fallback_kind) if answer_classifier.get("available") else fallback_kind
-    next_stage = next_stage_from_free_answer(question, answer, current_stage, kind)
+    kind, interpreted_by = resolve_free_answer_kind(answer_classifier, fallback_kind)
+    next_stage = next_stage_from_free_answer(question, answer, current_stage, kind, payload)
     reply = compose_tutorial_reply(project, question, answer, current_stage, next_stage, kind, payload)
 
     neural_payload = {
@@ -1349,7 +1349,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             kind=kind,
         )
         presentation_kind = presentation_kind_for_free_answer(kind, str(neural.get("kind") or ""), reply["kind"])
-        use_neural_text = should_use_neural_tutorial_text(kind, str(neural.get("kind") or ""))
+        use_neural_text = interpreted_by == "neural_answer_classifier" and should_use_neural_tutorial_text(kind, str(neural.get("kind") or ""))
         preview_payload = {
             **payload,
             "projectId": project.id,
@@ -1371,7 +1371,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             "question": question,
             "answer": answer,
             "interpreted": kind,
-            "interpretedBy": "neural_answer_classifier" if answer_classifier.get("available") else "fallback",
+            "interpretedBy": interpreted_by,
             "kind": presentation_kind,
             "title": (neural.get("title") if use_neural_text else "") or reply["title"],
             "body": (neural.get("body") if use_neural_text else "") or reply["body"],
@@ -1421,7 +1421,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "question": question,
         "answer": answer,
         "interpreted": kind,
-        "interpretedBy": "neural_answer_classifier" if answer_classifier.get("available") else "fallback",
+        "interpretedBy": interpreted_by,
         "kind": reply["kind"],
         "title": reply["title"],
         "body": reply["body"],
@@ -1436,6 +1436,25 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def resolve_free_answer_kind(answer_classifier: dict[str, Any], fallback_kind: str) -> tuple[str, str]:
+    if not answer_classifier.get("available"):
+        return fallback_kind, "fallback"
+
+    neural_kind = str(answer_classifier.get("kind") or "")
+    try:
+        confidence = float(answer_classifier.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+
+    if confidence >= 0.68 and neural_kind:
+        return neural_kind, "neural_answer_classifier"
+
+    if fallback_kind not in {"short_answer", "descriptive", "empty"}:
+        return fallback_kind, "fallback_low_confidence_guard"
+
+    return neural_kind or fallback_kind, "neural_answer_classifier_low_confidence"
+
+
 def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: str, kind: str) -> str:
     current_stage = current_stage if current_stage in STAGE_ORDER else "orient"
     model_stage = model_stage if model_stage in STAGE_ORDER else ""
@@ -1447,6 +1466,8 @@ def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: s
         if fallback_stage == "debug_triage":
             return fallback_stage
         return current_stage if current_stage in {"minimal_circuit", "firmware_upload", "observe_serial"} else fallback_stage
+    if kind in {"confirmed", "inventory_report", "board_report"} and current_stage == "minimal_circuit" and fallback_stage == current_stage:
+        return current_stage
 
     ranked = [stage for stage in [current_stage, model_stage, fallback_stage] if stage in PROGRESS_STAGE_ORDER]
     if not ranked:
@@ -1712,7 +1733,7 @@ def classify_free_answer(answer: str) -> str:
         return "unknown"
     if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "できない", "出ない", "動かない", "光らない", "鳴らない", "映らない", "止まる", "落ちる"]):
         return "problem_report"
-    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "完成", "終わった", "ok", "yes", "はい", "同じ", "つながってる", "つながっています", "つないだ", "入っています", "通っています", "大丈夫", "合っています", "見えています", "出ています"]):
+    if any(token in normalized for token in ["直した", "つなぎ直", "できた", "完了", "完成", "終わった", "ok", "yes", "はい", "同じ", "つながってる", "つながっています", "つないだ", "入っています", "入れています", "入れた", "はさんでいます", "挟んでいます", "はさんだ", "挟んだ", "通っています", "大丈夫", "合っています", "見えています", "出ています"]):
         return "confirmed"
     if any(token in normalized for token in ["いいえ", "no", "違う", "まだ", "無い", "ない", "入ってない", "つながってない", "通ってない", "見えない", "出てない"]):
         return "negative"
@@ -1737,8 +1758,16 @@ def looks_like_inventory(answer: str) -> bool:
     return "," in answer or "、" in answer
 
 
-def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str) -> str:
+def parse_tutorial_state(payload: dict[str, Any]) -> dict[str, bool]:
+    raw = payload.get("tutorialState") or payload.get("flow") or {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): bool(value) for key, value in raw.items()}
+
+
+def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str, payload: dict[str, Any] | None = None) -> str:
     lowered_question = question.lower()
+    tutorial_state = parse_tutorial_state(payload or {})
     if kind == "confirmed" and current_stage == "extension":
         return "completion_log"
     if kind == "confirmed" and current_stage == "enclosure":
@@ -1746,10 +1775,16 @@ def next_stage_from_free_answer(question: str, answer: str, current_stage: str, 
     if is_inventory_question_text(question):
         return "minimal_circuit"
     if is_gnd_question_text(question):
+        if kind == "confirmed" and current_stage == "minimal_circuit" and not tutorial_state.get("led"):
+            return "minimal_circuit"
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
     if is_board_question_text(question):
         return "firmware_upload" if current_stage in {"firmware_upload", "observe_serial"} else "minimal_circuit"
-    if "LED" in question or "led" in lowered_question or "抵抗" in question or "GPIO" in question:
+    if is_resistor_question_text(question):
+        return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
+    if "LED" in question or "led" in lowered_question or "GPIO" in question:
+        if kind == "confirmed" and current_stage == "minimal_circuit" and ("LED" in question or "led" in lowered_question) and not tutorial_state.get("resistor"):
+            return "minimal_circuit"
         return "firmware_upload" if kind == "confirmed" else "minimal_circuit"
     if "ポート" in question or "書き込" in question or "アップロード" in question or "COM" in question or "usb" in lowered_question:
         return "observe_serial" if kind == "confirmed" else "debug_triage"
@@ -1791,15 +1826,15 @@ def compose_tutorial_reply(project: MakerProject, question: str, answer: str, cu
     if is_board_question_text(question):
         return reply("good", "ボード情報を受け取りました", "このボードに合わせてピン番号と確認コードを組み立てます。", "次は最小回路とコードのピン番号を合わせます。", ["ESP32で進む", "Arduinoで進む", "分からない"])
 
+    if is_resistor_question_text(question):
+        if kind == "confirmed":
+            return reply("good", "抵抗は入っています", "LEDをGPIOへ直結していないので、まず安全な形です。", "次はコードのGPIO番号と配線先を一致させます。", chips)
+        return reply("warn", "抵抗を直列に入れます", "LEDとGPIOの間に220Ω前後の抵抗を入れてください。抵抗なしの直結は避けます。", "抵抗を足せたら、再度LEDだけで確認します。", ["抵抗を入れた", "抵抗がない", "分からない"])
+
     if "LED" in question or "led" in question.lower():
         if kind == "confirmed":
             return reply("good", "LEDの向きは大丈夫そうです", "長い足が抵抗を通ってGPIO側、短い足がGND側なら次へ進めます。", "次は抵抗とコードのピン番号を合わせます。", chips)
         return reply("warn", "LEDの向きを直してから進みます", "LEDは向きがあります。長い足をGPIO側、短い足をGND側にします。USBを抜いてから直してください。", "直せたら、もう一度LEDだけで点灯確認します。", ["直した", "写真で確認したい", "分からない"])
-
-    if "抵抗" in question:
-        if kind == "confirmed":
-            return reply("good", "抵抗は入っています", "LEDをGPIOへ直結していないので、まず安全な形です。", "次はコードのGPIO番号と配線先を一致させます。", chips)
-        return reply("warn", "抵抗を直列に入れます", "LEDとGPIOの間に220Ω前後の抵抗を入れてください。抵抗なしの直結は避けます。", "抵抗を足せたら、再度LEDだけで確認します。", ["抵抗を入れた", "抵抗がない", "分からない"])
 
     if "シリアル" in question or "起動メッセージ" in question or "値" in question:
         if kind == "confirmed":
@@ -1847,6 +1882,10 @@ def is_board_question_text(question: str) -> bool:
 
 def is_gnd_question_text(question: str) -> bool:
     return any(token in question for token in ["GND", "gnd", "グランド", "マイナス列", "GND列", "ground"])
+
+
+def is_resistor_question_text(question: str) -> bool:
+    return "220" in question or "抵抗は" in question or "抵抗が" in question or "抵抗を入" in question
 
 
 def wiring_check(payload: dict[str, Any]) -> dict[str, Any]:
