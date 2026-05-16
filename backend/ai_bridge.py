@@ -18,9 +18,10 @@ DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
-DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_hard_mix_v3")))
-DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier")))
+DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_hard_mix_v4")))
+DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_hard_v2")))
 FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS = [
+    ROOT / "runs" / "tutorial_response_hard_mix_v3",
     ROOT / "runs" / "tutorial_response_robust_120k",
     ROOT / "runs" / "tutorial_response_hard_mix_v2",
     ROOT / "runs" / "tutorial_response_50k_full",
@@ -63,10 +64,11 @@ def runtime_health() -> dict[str, Any]:
         "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
         "tutorial_response": DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
         "tutorial_answer_classifier": DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR / "best.pt",
-        "tutorial_response_robust_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
-        "tutorial_response_hard_mix_v2_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
-        "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[2] / "best.pt",
-        "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[3] / "best.pt",
+        "tutorial_response_hard_mix_v3_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
+        "tutorial_response_robust_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
+        "tutorial_response_hard_mix_v2_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[2] / "best.pt",
+        "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[3] / "best.pt",
+        "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[4] / "best.pt",
     }
     try:
         import torch

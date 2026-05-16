@@ -96,7 +96,7 @@ class TutorialResponseInference:
 
         candidates = self.generate_candidates(ids, mask, normalized_payload, payload)
         best = max(candidates, key=lambda item: float(item["score"]))
-        parsed = dict(best["parsed"])
+        parsed = polish_parsed(dict(best["parsed"]))
 
         return {
             "available": True,
@@ -303,6 +303,24 @@ def parse_generated(text: str) -> dict[str, str]:
         result["stage"] = "minimal_circuit"
     if result.get("style") not in {"good", "warn", "info"}:
         result["style"] = "info"
+    return result
+
+
+def polish_parsed(parsed: dict[str, str]) -> dict[str, str]:
+    return {key: polish_text(value) for key, value in parsed.items()}
+
+
+def polish_text(text: str) -> str:
+    replacements = {
+        "led": "LED",
+        "gpio": "GPIO",
+        "gnd": "GND",
+        "usb": "USB",
+        "serial": "Serial",
+    }
+    result = str(text or "")
+    for source, target in replacements.items():
+        result = re.sub(source, target, result, flags=re.IGNORECASE)
     return result
 
 
