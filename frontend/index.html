@@ -1799,6 +1799,10 @@
           board,
           currentStage,
           symptom,
+          tutorialState: { ...state.flow },
+          lastQuestion: state.lastAnsweredQuestion || state.latestQuestion || "",
+          lastAnswer: state.lastAnswer || "",
+          lastInterpreted: state.lastAgentReply?.interpreted || "",
           device: "cuda",
           sessionId: getSessionId(),
           clientVersion: CLIENT_VERSION,
@@ -1825,6 +1829,7 @@
           symptom: document.querySelector("#symptom")?.value || "",
           selectedEntry: state.selectedEntry,
           selectedProject: state.selectedProject,
+          flow: state.flow,
         };
         localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       }
@@ -1841,6 +1846,9 @@
           if (draft.symptom) document.querySelector("#symptom").value = draft.symptom;
           state.selectedEntry = draft.selectedEntry || state.selectedEntry;
           state.selectedProject = draft.selectedProject || state.selectedProject;
+          if (draft.flow && typeof draft.flow === "object") {
+            state.flow = { ...state.flow, ...draft.flow };
+          }
           setProgress("前回の入力を復元しました。続きをそのまま生成できます。");
         } catch {
           localStorage.removeItem(DRAFT_KEY);
@@ -2163,6 +2171,11 @@
               model: response.model || "",
               mode: response.mode || "",
               modelDir: response.modelDir || "",
+              interpreted: response.interpreted || "",
+              interpretedBy: response.interpretedBy || "",
+              answerClassifier: response.answerClassifier || null,
+              alignmentScore: response.alignmentScore,
+              candidateCount: response.candidateCount,
             };
           }
         } catch (error) {
@@ -2350,13 +2363,17 @@
         const topic = questionTopic(question);
         if (!topic) return;
         const positive = isPositiveAnswer(answer, agentReply);
+        const interpreted = interpretedKind(agentReply);
         if ((topic === "inventory" || topic === "board") && !isUnknownAnswer(answer)) {
           state.flow[topic] = true;
         }
+        if (interpreted === "inventory_report") state.flow.inventory = true;
+        if (interpreted === "board_report") state.flow.board = true;
         if (!positive) return;
         if (topic in state.flow) state.flow[topic] = true;
         if (topic === "board") state.flow.inventory = true;
         if (topic === "serial") state.flow.standard = true;
+        saveDraft();
       }
 
       function chooseProgressStage(currentStage, answer, question, agentReply = {}) {
@@ -2373,13 +2390,18 @@
           if (currentStage === "extension") topicStage = "completion_log";
           else if (currentStage === "enclosure") topicStage = "extension";
           else if (topic === "inventory" || topic === "board") topicStage = "minimal_circuit";
-          else if (topic === "gnd" || topic === "led" || topic === "resistor") topicStage = "firmware_upload";
+          else if (topic === "gnd") topicStage = state.flow.led && state.flow.resistor ? "firmware_upload" : "minimal_circuit";
+          else if (topic === "led") topicStage = state.flow.resistor ? "firmware_upload" : "minimal_circuit";
+          else if (topic === "resistor") topicStage = "firmware_upload";
           else if (topic === "upload") topicStage = "observe_serial";
           else if (topic === "serial") topicStage = "standard_build";
           else if (topic === "enclosure") topicStage = "extension";
           else if (topic === "extension") topicStage = "completion_log";
         }
 
+        if (positive && currentStage === "minimal_circuit" && topicStage === "minimal_circuit") {
+          return "minimal_circuit";
+        }
         return furthestProgressStage(currentStage, modelStage, topicStage);
       }
 
@@ -2392,6 +2414,9 @@
       }
 
       function shouldStayInDebug(answer, agentReply = {}) {
+        const interpreted = interpretedKind(agentReply);
+        if (["negative", "unknown", "problem_report", "photo_request"].includes(interpreted)) return true;
+        if (["confirmed", "inventory_report", "board_report"].includes(interpreted)) return false;
         const normalized = answer.replace(/\s/g, "").toLowerCase();
         return agentReply.nextStage === "debug_triage" || ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
           normalized.includes(word)
@@ -2399,6 +2424,9 @@
       }
 
       function isPositiveAnswer(answer, agentReply = {}) {
+        const interpreted = interpretedKind(agentReply);
+        if (["confirmed", "inventory_report", "board_report"].includes(interpreted)) return true;
+        if (["negative", "unknown", "problem_report", "photo_request"].includes(interpreted)) return false;
         const normalized = answer.replace(/\s/g, "").toLowerCase();
         if (isUnknownAnswer(answer) || ["いいえ", "no", "違う", "まだ", "ない", "出ない", "見えない", "動かない", "光らない", "エラー"].some((word) => normalized.includes(word))) {
           return false;
@@ -2406,6 +2434,10 @@
         return isYesAnswer(answer) || agentReply.kind === "good" || ["大丈夫", "でき", "完了", "完成", "終わった", "入っています", "つなが", "通って", "見えています", "出ています", "合っています"].some((word) =>
           normalized.includes(word.replace(/\s/g, "").toLowerCase())
         );
+      }
+
+      function interpretedKind(agentReply = {}) {
+        return agentReply.interpreted || agentReply.answerClassifier?.kind || "";
       }
 
       function isInventoryQuestion(question) {
