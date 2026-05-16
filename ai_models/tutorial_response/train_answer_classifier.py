@@ -21,6 +21,11 @@ from .taxonomy import PROJECTS
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train neural classifier for tutorial free-answer intent.")
     parser.add_argument("--data", default="data/tutorial_answer_classifier_training.jsonl")
+    parser.add_argument("--extra-data", action="append", default=[], help="Additional classifier JSONL records exported from real logs.")
+    parser.add_argument("--extra-weight", type=int, default=3)
+    parser.add_argument("--positive-feedback-weight", type=int, default=3)
+    parser.add_argument("--fix-feedback-weight", type=int, default=6)
+    parser.add_argument("--keep-negative-extra", action="store_true")
     parser.add_argument("--output", default="runs/tutorial_answer_classifier")
     parser.add_argument("--samples", type=int, default=70000)
     parser.add_argument("--robust-ratio", type=float, default=0.85)
@@ -49,6 +54,13 @@ def main() -> None:
         records = make_classifier_records(args.samples, seed=args.seed, robust_ratio=args.robust_ratio)
         write_jsonl(data_path, records)
     records = load_jsonl(data_path)
+    records.extend(load_extra_records(
+        args.extra_data,
+        base_weight=max(1, args.extra_weight),
+        positive_weight=max(1, args.positive_feedback_weight),
+        fix_weight=max(1, args.fix_feedback_weight),
+        keep_negative=args.keep_negative_extra,
+    ))
     tokenizer = MakerTokenizer(domain_terms=[])
     tokenizer.build_vocab(collect_texts(records), min_freq=1, max_vocab_size=22000)
     config = TutorialAnswerClassifierConfig(
@@ -158,6 +170,52 @@ def make_classifier_records(samples: int, seed: int, robust_ratio: float) -> lis
     rng = random.Random(seed)
     records = make_handwritten_variation_records(rng, samples)
     rng.shuffle(records)
+    return records
+
+
+def load_extra_records(
+    paths: list[str],
+    base_weight: int,
+    positive_weight: int,
+    fix_weight: int,
+    keep_negative: bool,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    counts = {"up": 0, "down": 0, "fix": 0, "none": 0}
+    for raw_path in paths:
+        path = Path(raw_path)
+        if not path.exists():
+            print(json.dumps({"event": "classifier_extra_data_missing", "path": str(path)}, ensure_ascii=False), flush=True)
+            continue
+        for record in load_jsonl(path):
+            source = str(record.get("source") or "")
+            kind = str(record.get("kind") or record.get("target") or "")
+            if not source or kind not in ANSWER_KIND_LABELS:
+                continue
+            feedback = str(record.get("feedback") or "none")
+            if feedback == "down" and not keep_negative:
+                counts["down"] += 1
+                continue
+            key = (source, kind)
+            if key in seen:
+                continue
+            seen.add(key)
+            counts[feedback if feedback in counts else "none"] += 1
+            repeat = base_weight
+            if feedback == "up":
+                repeat *= positive_weight
+            elif feedback == "fix":
+                repeat *= fix_weight
+            for _ in range(repeat):
+                records.append({"source": source, "kind": kind, "target": kind})
+        print(json.dumps({
+            "event": "classifier_extra_data_loaded",
+            "path": str(path),
+            "unique_records": len(seen),
+            "weighted_records": len(records),
+            "feedback": counts,
+        }, ensure_ascii=False), flush=True)
     return records
 
 
