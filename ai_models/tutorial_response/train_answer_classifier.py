@@ -194,6 +194,7 @@ def load_extra_records(
             if not source or kind not in ANSWER_KIND_LABELS:
                 continue
             feedback = str(record.get("feedback") or "none")
+            hard_reason = str(record.get("hardReason") or "")
             if feedback == "down" and not keep_negative:
                 counts["down"] += 1
                 continue
@@ -207,6 +208,8 @@ def load_extra_records(
                 repeat *= positive_weight
             elif feedback == "fix":
                 repeat *= fix_weight
+            if hard_reason:
+                repeat *= 2
             for _ in range(repeat):
                 records.append({"source": source, "kind": kind, "target": kind})
         print(json.dumps({
