@@ -1520,6 +1520,7 @@ def log_tutorial_response_event(
                 "model": result.get("model"),
                 "modelDir": result.get("modelDir"),
             },
+            "answerClassifier": compact_answer_classifier(result.get("answerClassifier")),
             "target": tutorial_response_target(result, current_stage),
             "neuralAvailable": bool((neural or {}).get("available")),
             "neuralGenerated": clip_log_text((neural or {}).get("generated") or "", 2000),
@@ -1529,6 +1530,28 @@ def log_tutorial_response_event(
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
     except Exception as exc:  # pragma: no cover - logging must never block UX
         print(f"tutorial log skipped: {exc}", flush=True)
+
+
+def compact_answer_classifier(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or not value.get("available"):
+        return None
+    ranked = value.get("ranked") if isinstance(value.get("ranked"), list) else []
+    return {
+        "model": clip_log_text(value.get("model") or "", 160),
+        "modelDir": clip_log_text(value.get("modelDir") or "", 240),
+        "device": clip_log_text(value.get("device") or "", 80),
+        "kind": clip_log_text(value.get("kind") or "", 80),
+        "confidence": value.get("confidence"),
+        "ranked": [
+            {
+                "kind": clip_log_text(item.get("kind") or "", 80),
+                "probability": item.get("probability"),
+            }
+            for item in ranked[:4]
+            if isinstance(item, dict)
+        ],
+        "metrics": value.get("metrics") if isinstance(value.get("metrics"), dict) else {},
+    }
 
 
 def tutorial_response_target(result: dict[str, Any], fallback_stage: str) -> str:
@@ -1661,6 +1684,8 @@ def tutorial_feedback(payload: dict[str, Any]) -> dict[str, Any]:
         "question": clip_log_text(payload.get("question") or ""),
         "answer": clip_log_text(payload.get("answer") or ""),
         "reply": {
+            "interpreted": clip_log_text((payload.get("reply") or {}).get("interpreted") if isinstance(payload.get("reply"), dict) else "", 80),
+            "interpretedBy": clip_log_text((payload.get("reply") or {}).get("interpretedBy") if isinstance(payload.get("reply"), dict) else "", 120),
             "kind": clip_log_text((payload.get("reply") or {}).get("kind") if isinstance(payload.get("reply"), dict) else "", 60),
             "title": clip_log_text((payload.get("reply") or {}).get("title") if isinstance(payload.get("reply"), dict) else ""),
             "body": clip_log_text((payload.get("reply") or {}).get("body") if isinstance(payload.get("reply"), dict) else ""),
@@ -1669,6 +1694,7 @@ def tutorial_feedback(payload: dict[str, Any]) -> dict[str, Any]:
             "mode": clip_log_text((payload.get("reply") or {}).get("mode") if isinstance(payload.get("reply"), dict) else "", 180),
             "modelDir": clip_log_text((payload.get("reply") or {}).get("modelDir") if isinstance(payload.get("reply"), dict) else "", 240),
         },
+        "answerClassifier": compact_answer_classifier((payload.get("reply") or {}).get("answerClassifier") if isinstance(payload.get("reply"), dict) else None),
     }
     TUTORIAL_FEEDBACK_LOG.parent.mkdir(parents=True, exist_ok=True)
     with TUTORIAL_FEEDBACK_LOG.open("a", encoding="utf-8") as handle:
