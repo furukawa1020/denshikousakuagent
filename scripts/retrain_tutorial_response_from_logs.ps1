@@ -4,6 +4,7 @@ param(
   [string]$Export = "runtime\tutorial_response_real_records.jsonl",
   [string]$PreferenceExport = "runtime\tutorial_response_preferences.jsonl",
   [string]$ClassifierExport = "runtime\tutorial_answer_classifier_real_records.jsonl",
+  [string]$HardClassifierExport = "runtime\tutorial_answer_classifier_hard_examples.jsonl",
   [string]$BaseData = "data\tutorial_response_training_robust_120k.jsonl",
   [string]$ClassifierBaseData = "data\tutorial_answer_classifier_training.jsonl",
   [string]$Output = "runs\tutorial_response_robust_real",
@@ -38,6 +39,12 @@ Write-Host "Exporting real answer-classifier records..."
   --output $ClassifierExport `
   --drop-negative
 
+Write-Host "Exporting hard answer-classifier examples..."
+& $python -B scripts\export_tutorial_hard_examples.py `
+  --logs $Logs `
+  --feedback-logs $FeedbackLogs `
+  --output $HardClassifierExport
+
 $device = if ($Cpu) { "cpu" } else { "cuda" }
 $ampArgs = @()
 if (!$Cpu) {
@@ -60,6 +67,7 @@ Write-Host "Training tutorial answer classifier on $device..."
 & $python -m ai_models.tutorial_response.train_answer_classifier `
   --data $ClassifierBaseData `
   --extra-data $ClassifierExport `
+  --extra-data $HardClassifierExport `
   --extra-weight $ExtraWeight `
   --samples $ClassifierSamples `
   --output $ClassifierOutput `
