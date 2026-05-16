@@ -216,6 +216,19 @@ def align_with_requested_stage(
     checkpoint = {**checkpoint, "id": defaults["checkpoint"]}
     route = {**route, "id": defaults["route"]}
 
+    memory_plan = tutorial_memory_plan(payload, requested_stage, symptom)
+    if memory_plan:
+        if memory_plan.get("stage"):
+            stage = {**stage, "id": memory_plan["stage"]}
+        if memory_plan.get("action"):
+            action = {**action, "id": memory_plan["action"]}
+        if memory_plan.get("question"):
+            question = {**question, "id": memory_plan["question"]}
+        if memory_plan.get("checkpoint"):
+            checkpoint = {**checkpoint, "id": memory_plan["checkpoint"]}
+        if memory_plan.get("route"):
+            route = {**route, "id": memory_plan["route"]}
+
     if symptom == "led_not_lighting":
         question = {**question, "id": "check_led_polarity"}
     elif symptom == "upload_failed":
@@ -224,6 +237,88 @@ def align_with_requested_stage(
         question = {**question, "id": "check_serial_value"}
 
     return stage, action, question, checkpoint, route
+
+
+def tutorial_memory_plan(payload: dict[str, Any], requested_stage: str, symptom: str) -> dict[str, str]:
+    if symptom != "none":
+        return {}
+
+    progress = parse_tutorial_state(payload.get("tutorialState") or payload.get("flow") or {})
+    board = str(payload.get("board") or "").lower()
+    board_known = bool(board and board not in {"auto", "unknown", "none", "未選択"})
+
+    if requested_stage == "parts_check":
+        if progress.get("inventory"):
+            return {
+                "stage": "minimal_circuit",
+                "action": "guide_wiring",
+                "question": "check_gnd",
+                "checkpoint": "parts_ready",
+                "route": "minimal",
+            }
+        return {}
+
+    if requested_stage == "minimal_circuit":
+        if not progress.get("gnd"):
+            return {"question": "check_gnd", "action": "guide_wiring", "checkpoint": "parts_ready"}
+        if not progress.get("led"):
+            return {"question": "check_led_polarity", "action": "guide_wiring", "checkpoint": "parts_ready"}
+        if not progress.get("resistor"):
+            return {"question": "check_resistor", "action": "guide_wiring", "checkpoint": "parts_ready"}
+        return {
+            "stage": "firmware_upload",
+            "action": "generate_test_firmware",
+            "question": "check_usb_port" if board_known else "confirm_board",
+            "checkpoint": "wired_minimal",
+            "route": "minimal",
+        }
+
+    if requested_stage == "firmware_upload":
+        return {
+            "question": "check_usb_port" if board_known or progress.get("board") else "confirm_board",
+            "action": "generate_test_firmware",
+            "checkpoint": "wired_minimal",
+            "route": "minimal",
+        }
+
+    if requested_stage == "observe_serial":
+        if progress.get("serial"):
+            return {
+                "stage": "standard_build",
+                "action": "guide_wiring",
+                "question": "choose_next_extension",
+                "checkpoint": "observed_signal",
+                "route": "standard",
+            }
+        return {"question": "check_serial_value", "action": "request_serial_log", "checkpoint": "code_uploaded"}
+
+    if requested_stage == "standard_build":
+        if progress.get("standard"):
+            return {
+                "stage": "enclosure",
+                "action": "ask_single_question",
+                "question": "choose_next_extension",
+                "checkpoint": "standard_done",
+                "route": "standard",
+            }
+        return {"question": "choose_next_extension", "route": "standard"}
+
+    if requested_stage in {"enclosure", "extension"} and progress.get("extension"):
+        return {
+            "stage": "completion_log",
+            "action": "save_build_log",
+            "question": "choose_next_extension",
+            "checkpoint": "completed",
+            "route": "extension",
+        }
+
+    return {}
+
+
+def parse_tutorial_state(raw: Any) -> dict[str, bool]:
+    if not isinstance(raw, dict):
+        return {}
+    return {str(key): bool(value) for key, value in raw.items()}
 
 
 def detect_project(text: str) -> str:
