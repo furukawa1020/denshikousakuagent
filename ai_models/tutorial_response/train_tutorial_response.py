@@ -15,7 +15,7 @@ from ai_models.makergraph.tokenizer import MakerTokenizer
 
 from .config import TutorialResponseConfig
 from .data import TutorialResponseDataset, collect_texts, collate_response_batch, generate_records, load_jsonl, write_jsonl
-from .model import TutorialResponseTransformer, count_parameters
+from .model import TutorialResponseTransformer, count_parameters, load_checkpoint
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,6 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-negative-extra", action="store_true", help="Keep negatively rated extra records instead of skipping them.")
     parser.add_argument("--feedback-up-multiplier", type=int, default=2)
     parser.add_argument("--feedback-fix-multiplier", type=int, default=5)
+    parser.add_argument("--init-from", default="", help="Continue training from an existing tutorial response model directory.")
     parser.add_argument("--output", default="runs/tutorial_response")
     parser.add_argument("--samples", type=int, default=14000)
     parser.add_argument("--robust-ratio", type=float, default=0.7)
@@ -68,18 +69,32 @@ def main() -> None:
     records.extend(extra_records)
     preference_records = load_preference_records(args.preference_data)
     print(json.dumps({"event": "data_loaded", "records": len(records), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
-    tokenizer = MakerTokenizer(domain_terms=[])
-    tokenizer.build_vocab(collect_texts(records) + collect_preference_texts(preference_records), min_freq=1, max_vocab_size=22000)
-    print(json.dumps({"event": "vocab_built", "vocab_size": len(tokenizer.vocab), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
-    config = TutorialResponseConfig(
-        vocab_size=len(tokenizer.vocab),
-        max_source_length=args.max_source_length,
-        max_target_length=args.max_target_length,
-        d_model=args.d_model,
-        n_heads=args.n_heads,
-        n_encoder_layers=args.n_layers,
-        n_decoder_layers=args.n_layers,
-    )
+    init_dir = Path(args.init_from) if args.init_from else None
+    if init_dir:
+        tokenizer = MakerTokenizer.load(init_dir / "tokenizer.json")
+        model, config, init_payload = load_checkpoint(init_dir / "best.pt", map_location="cpu")
+        print(json.dumps({
+            "event": "checkpoint_loaded",
+            "initFrom": str(init_dir),
+            "epoch": init_payload.get("epoch"),
+            "metrics": init_payload.get("metrics", {}),
+            "vocab_size": len(tokenizer.vocab),
+            "elapsed_sec": round(time.perf_counter() - started, 2),
+        }, ensure_ascii=False), flush=True)
+    else:
+        tokenizer = MakerTokenizer(domain_terms=[])
+        tokenizer.build_vocab(collect_texts(records) + collect_preference_texts(preference_records), min_freq=1, max_vocab_size=22000)
+        print(json.dumps({"event": "vocab_built", "vocab_size": len(tokenizer.vocab), "elapsed_sec": round(time.perf_counter() - started, 2)}, ensure_ascii=False), flush=True)
+        config = TutorialResponseConfig(
+            vocab_size=len(tokenizer.vocab),
+            max_source_length=args.max_source_length,
+            max_target_length=args.max_target_length,
+            d_model=args.d_model,
+            n_heads=args.n_heads,
+            n_encoder_layers=args.n_layers,
+            n_decoder_layers=args.n_layers,
+        )
+        model = TutorialResponseTransformer(config)
     dataset = TutorialResponseDataset(records, tokenizer, config.max_source_length, config.max_target_length)
     train_size = int(len(dataset) * 0.9)
     valid_size = len(dataset) - train_size
@@ -91,7 +106,7 @@ def main() -> None:
     if preference_records:
         preference_dataset = TutorialPreferenceDataset(preference_records, tokenizer, config.max_source_length, config.max_target_length)
         preference_loader = DataLoader(preference_dataset, batch_size=args.preference_batch_size, shuffle=True, collate_fn=collate_preference_batch)
-    model = TutorialResponseTransformer(config).to(device)
+    model = model.to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=args.amp and device.type == "cuda")
     output_dir = Path(args.output)
