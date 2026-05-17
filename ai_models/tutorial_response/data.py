@@ -899,14 +899,21 @@ def mutate_answer(answer: str, rng: random.Random) -> str:
 
 
 def build_source(payload: dict[str, Any]) -> str:
+    tutorial_state = payload.get("tutorialState") or payload.get("tutorial_state") or payload.get("flow") or ""
+    if isinstance(tutorial_state, dict):
+        tutorial_state = ", ".join(f"{key}={bool(value)}" for key, value in sorted(tutorial_state.items()))
     return "\n".join([
         f"project: {payload.get('projectId')} {payload.get('projectTitle')}",
         f"stage: {payload.get('currentStage')}",
+        f"tutorial_state: {tutorial_state}",
         f"budget: {payload.get('budget')}",
         f"inventory: {payload.get('inventory')}",
         f"symptom: {payload.get('symptom')}",
         f"skill: {payload.get('skill')}",
         f"previous: {payload.get('previous')}",
+        f"last_question: {payload.get('lastQuestion') or payload.get('last_question') or ''}",
+        f"last_answer: {payload.get('lastAnswer') or payload.get('last_answer') or ''}",
+        f"last_interpreted: {payload.get('lastInterpreted') or payload.get('last_interpreted') or ''}",
         f"interpreted_kind: {payload.get('interpretedKind') or payload.get('interpreted_kind') or ''}",
         f"fallback_stage: {payload.get('fallbackStage') or payload.get('fallback_stage') or ''}",
         f"tutorial_topic: {payload.get('tutorialTopic') or payload.get('tutorial_topic') or ''}",
