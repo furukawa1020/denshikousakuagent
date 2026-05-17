@@ -263,6 +263,7 @@ def normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "projectId": project_id if project_id in PROJECTS else "desk_pet",
         "projectTitle": PROJECTS.get(project_id, PROJECTS["desk_pet"]),
         "currentStage": payload.get("currentStage") or payload.get("stage") or "orient",
+        "tutorialState": payload.get("tutorialState") or payload.get("tutorial_state") or payload.get("flow") or "",
         "fallbackStage": payload.get("fallbackStage") or "",
         "interpretedKind": payload.get("interpretedKind") or payload.get("kind") or "",
         "question": payload.get("question") or payload.get("nextQuestion") or "",
@@ -272,6 +273,10 @@ def normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "symptom": payload.get("symptom") or "none",
         "skill": payload.get("skill") or "",
         "previous": payload.get("previous") or "",
+        "lastQuestion": payload.get("lastQuestion") or payload.get("last_question") or "",
+        "lastAnswer": payload.get("lastAnswer") or payload.get("last_answer") or "",
+        "lastInterpreted": payload.get("lastInterpreted") or payload.get("last_interpreted") or "",
+        "tutorialTopic": payload.get("tutorialTopic") or payload.get("tutorial_topic") or "",
     }
 
 
