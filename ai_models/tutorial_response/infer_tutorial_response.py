@@ -326,6 +326,10 @@ def polish_text(text: str) -> str:
     result = str(text or "")
     for source, target in replacements.items():
         result = re.sub(source, target, result, flags=re.IGNORECASE)
+    result = result.replace("<num>Ω", "220Ω")
+    result = result.replace("<num>オーム", "220オーム")
+    result = result.replace("<num>", "")
+    result = re.sub(r"Serial\s*monitor", "Serial Monitor", result, flags=re.IGNORECASE)
     return result
 
 
