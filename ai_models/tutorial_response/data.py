@@ -906,6 +906,11 @@ def build_source(payload: dict[str, Any]) -> str:
         f"project: {payload.get('projectId')} {payload.get('projectTitle')}",
         f"stage: {payload.get('currentStage')}",
         f"tutorial_state: {tutorial_state}",
+        f"question: {payload.get('question')}",
+        f"answer: {payload.get('answer')}",
+        f"interpreted_kind: {payload.get('interpretedKind') or payload.get('interpreted_kind') or ''}",
+        f"fallback_stage: {payload.get('fallbackStage') or payload.get('fallback_stage') or ''}",
+        f"tutorial_topic: {payload.get('tutorialTopic') or payload.get('tutorial_topic') or ''}",
         f"budget: {payload.get('budget')}",
         f"inventory: {payload.get('inventory')}",
         f"symptom: {payload.get('symptom')}",
@@ -914,11 +919,6 @@ def build_source(payload: dict[str, Any]) -> str:
         f"last_question: {payload.get('lastQuestion') or payload.get('last_question') or ''}",
         f"last_answer: {payload.get('lastAnswer') or payload.get('last_answer') or ''}",
         f"last_interpreted: {payload.get('lastInterpreted') or payload.get('last_interpreted') or ''}",
-        f"interpreted_kind: {payload.get('interpretedKind') or payload.get('interpreted_kind') or ''}",
-        f"fallback_stage: {payload.get('fallbackStage') or payload.get('fallback_stage') or ''}",
-        f"tutorial_topic: {payload.get('tutorialTopic') or payload.get('tutorial_topic') or ''}",
-        f"question: {payload.get('question')}",
-        f"answer: {payload.get('answer')}",
         "task: generate empathetic autonomous tutorial response, next instruction, and next stage",
     ])
 
