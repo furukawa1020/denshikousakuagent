@@ -18,9 +18,13 @@ DEFAULT_NEURAL_AGENT_MODEL_DIR = ROOT / "runs" / "neural_agents"
 DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
-DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_hard_mix_v4")))
-DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_hard_v2")))
+DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_context_v6_full")))
+DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_context_v7")))
+DEFAULT_TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_progress_expert_v2")))
 FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS = [
+    ROOT / "runs" / "tutorial_response_context_v5_full",
+    ROOT / "runs" / "tutorial_response_context_v5",
+    ROOT / "runs" / "tutorial_response_hard_mix_v4",
     ROOT / "runs" / "tutorial_response_hard_mix_v3",
     ROOT / "runs" / "tutorial_response_robust_120k",
     ROOT / "runs" / "tutorial_response_hard_mix_v2",
@@ -64,11 +68,15 @@ def runtime_health() -> dict[str, Any]:
         "tutorial_agent": DEFAULT_TUTORIAL_AGENT_MODEL_DIR / "best.pt",
         "tutorial_response": DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR / "best.pt",
         "tutorial_answer_classifier": DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR / "best.pt",
-        "tutorial_response_hard_mix_v3_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
-        "tutorial_response_robust_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
-        "tutorial_response_hard_mix_v2_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[2] / "best.pt",
-        "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[3] / "best.pt",
-        "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[4] / "best.pt",
+        "tutorial_progress_answer_classifier": DEFAULT_TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR / "best.pt",
+        "tutorial_response_context_v5_full_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[0] / "best.pt",
+        "tutorial_response_context_v5_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[1] / "best.pt",
+        "tutorial_response_hard_mix_v4_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[2] / "best.pt",
+        "tutorial_response_hard_mix_v3_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[3] / "best.pt",
+        "tutorial_response_robust_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[4] / "best.pt",
+        "tutorial_response_hard_mix_v2_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[5] / "best.pt",
+        "tutorial_response_50k_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[6] / "best.pt",
+        "tutorial_response_legacy_fallback": FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS[7] / "best.pt",
     }
     try:
         import torch
@@ -481,7 +489,15 @@ def tutorial_response_inference(payload: dict[str, Any]) -> dict[str, Any]:
 
 def tutorial_answer_classifier_inference(payload: dict[str, Any]) -> dict[str, Any]:
     explicit_model_dir = payload.get("answerClassifierModelDir")
-    model_dir = Path(explicit_model_dir) if explicit_model_dir else DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR
+    stage = str(payload.get("currentStage") or payload.get("stage") or "")
+    use_progress_expert = not explicit_model_dir and stage in {"firmware_upload", "observe_serial"}
+    model_dir = (
+        Path(explicit_model_dir)
+        if explicit_model_dir
+        else DEFAULT_TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR
+        if use_progress_expert
+        else DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR
+    )
     checkpoint = model_dir / "best.pt"
     tokenizer = model_dir / "tokenizer.json"
     if not checkpoint.exists() or not tokenizer.exists():
@@ -503,7 +519,7 @@ def tutorial_answer_classifier_inference(payload: dict[str, Any]) -> dict[str, A
     try:
         device = requested_device(payload)
         service = cached_service(
-            "tutorial_answer_classifier",
+            "tutorial_progress_answer_classifier" if use_progress_expert else "tutorial_answer_classifier",
             model_dir,
             device,
             lambda: TutorialAnswerClassifierInference(model_dir=model_dir, device=device),
@@ -511,6 +527,7 @@ def tutorial_answer_classifier_inference(payload: dict[str, Any]) -> dict[str, A
         return {
             **service.predict(payload),
             "modelDir": str(model_dir),
+            "specialist": "progress" if use_progress_expert else "general",
         }
     except Exception as exc:  # pragma: no cover
         return {
