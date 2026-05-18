@@ -2174,6 +2174,7 @@
               interpreted: response.interpreted || "",
               interpretedBy: response.interpretedBy || "",
               answerClassifier: response.answerClassifier || null,
+              stageClassifier: response.stageClassifier || null,
               alignmentScore: response.alignmentScore,
               candidateCount: response.candidateCount,
             };
@@ -2377,50 +2378,12 @@
       }
 
       function chooseProgressStage(currentStage, answer, question, agentReply = {}) {
-        const topic = questionTopic(question);
-        const positive = isPositiveAnswer(answer, agentReply);
-        const localStage = nextStageForAnswer(currentStage, answer, question);
-        const modelStage = agentReply.nextStage || "";
-        if (!positive && shouldStayInDebug(answer, agentReply)) {
-          return modelStage === "debug_triage" ? "debug_triage" : localStage;
+        const neuralStage = agentReply.stageClassifier?.stage || agentReply.nextStage || "";
+        const confidence = Number(agentReply.stageClassifier?.confidence ?? agentReply.confidence ?? 0);
+        if (neuralStage === "debug_triage" || FLOW_ORDER.includes(neuralStage)) {
+          if (agentReply.stageClassifier || agentReply.model || confidence >= 0.5) return neuralStage;
         }
-
-        let topicStage = localStage;
-        if (positive) {
-          if (currentStage === "extension") topicStage = "completion_log";
-          else if (currentStage === "enclosure") topicStage = "extension";
-          else if (topic === "inventory" || topic === "board") topicStage = "minimal_circuit";
-          else if (topic === "gnd") topicStage = state.flow.led && state.flow.resistor ? "firmware_upload" : "minimal_circuit";
-          else if (topic === "led") topicStage = state.flow.resistor ? "firmware_upload" : "minimal_circuit";
-          else if (topic === "resistor") topicStage = "firmware_upload";
-          else if (topic === "upload") topicStage = "observe_serial";
-          else if (topic === "serial") topicStage = "standard_build";
-          else if (topic === "enclosure") topicStage = "extension";
-          else if (topic === "extension") topicStage = "completion_log";
-        }
-
-        if (positive && currentStage === "minimal_circuit" && topicStage === "minimal_circuit") {
-          return "minimal_circuit";
-        }
-        return furthestProgressStage(currentStage, modelStage, topicStage);
-      }
-
-      function furthestProgressStage(...stages) {
-        const ranked = stages.filter((stage) => FLOW_ORDER.includes(stage));
-        if (!ranked.length) {
-          return stages.includes("debug_triage") ? "debug_triage" : "parts_check";
-        }
-        return ranked.sort((a, b) => FLOW_ORDER.indexOf(b) - FLOW_ORDER.indexOf(a))[0];
-      }
-
-      function shouldStayInDebug(answer, agentReply = {}) {
-        const interpreted = interpretedKind(agentReply);
-        if (["negative", "unknown", "problem_report", "photo_request"].includes(interpreted)) return true;
-        if (["confirmed", "inventory_report", "board_report"].includes(interpreted)) return false;
-        const normalized = answer.replace(/\s/g, "").toLowerCase();
-        return agentReply.nextStage === "debug_triage" || ["いいえ", "no", "分からない", "わからない", "不明", "動かない", "エラー", "光らない", "鳴らない", "映らない", "止まる"].some((word) =>
-          normalized.includes(word)
-        );
+        return currentStage || "parts_check";
       }
 
       function isPositiveAnswer(answer, agentReply = {}) {
@@ -2460,27 +2423,6 @@
 
       function isGndQuestion(question) {
         return ["GND", "gnd", "グランド", "マイナス列", "GND列", "ground"].some((word) => question.includes(word));
-      }
-
-      function nextStageForAnswer(currentStage, answer, question = "") {
-        const topic = questionTopic(question);
-        if (topic === "inventory") return "minimal_circuit";
-        if (topic === "board") return currentStage === "orient" ? "parts_check" : "minimal_circuit";
-        if (topic === "gnd" || topic === "led" || topic === "resistor") return isYesAnswer(answer) ? "firmware_upload" : "minimal_circuit";
-        if (topic === "upload") return isYesAnswer(answer) ? "observe_serial" : "debug_triage";
-        if (topic === "serial") return isYesAnswer(answer) ? "standard_build" : "debug_triage";
-        if (topic === "enclosure") return isYesAnswer(answer) ? "extension" : "enclosure";
-        if (topic === "extension") return isYesAnswer(answer) ? "completion_log" : "extension";
-
-        if (shouldStayInDebug(answer)) {
-          if (currentStage === "orient") return "parts_check";
-          if (currentStage === "parts_check") return "parts_check";
-          return "debug_triage";
-        }
-
-        const index = FLOW_ORDER.indexOf(currentStage);
-        if (index < 0 || index >= FLOW_ORDER.length - 1) return currentStage;
-        return FLOW_ORDER[index + 1];
       }
 
       function renderNeural(result) {
