@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from ai_models.makergraph.tokenizer import MakerTokenizer
 
 from .answer_classifier import TutorialAnswerClassifier, TutorialAnswerClassifierConfig, count_parameters
-from .data import collect_texts, load_jsonl
+from .data import load_jsonl
 from .taxonomy import STAGES
 
 
@@ -51,7 +51,7 @@ def main() -> None:
     random.Random(args.seed).shuffle(records)
 
     tokenizer = MakerTokenizer(domain_terms=[])
-    tokenizer.build_vocab(collect_texts(records), min_freq=1, max_vocab_size=22000)
+    tokenizer.build_vocab(collect_stage_texts(records), min_freq=1, max_vocab_size=22000)
     config = TutorialAnswerClassifierConfig(
         vocab_size=len(tokenizer.vocab),
         max_source_length=args.max_source_length,
@@ -136,6 +136,14 @@ def stage_distribution(records: list[dict[str, str]]) -> dict[str, int]:
     for record in records:
         counts[record["stage"]] = counts.get(record["stage"], 0) + 1
     return counts
+
+
+def collect_stage_texts(records: list[dict[str, str]]) -> list[str]:
+    texts: list[str] = []
+    for record in records:
+        texts.append(record["source"])
+        texts.append(record["stage"])
+    return texts
 
 
 class TutorialStageDataset(Dataset):
