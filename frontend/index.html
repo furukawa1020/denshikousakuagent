@@ -1968,9 +1968,9 @@
           ${renderStageStrip(stageId)}
           ${renderNextCard(stageId, tutorial)}
           <div class="kv">
-            <div><span>次の一手</span><strong>${escapeHtml(tutorial.nextAction)}</strong></div>
-            <div><span>次の質問</span><strong>${escapeHtml(tutorial.nextQuestion)}</strong></div>
-            <div><span>期待する反応</span><strong>${escapeHtml(tutorial.expectedSignal)}</strong></div>
+            <div><span>次の一手</span><strong data-next-action>${escapeHtml(tutorial.nextAction)}</strong></div>
+            <div><span>次の質問</span><strong data-next-question>${escapeHtml(tutorial.nextQuestion)}</strong></div>
+            <div><span>期待する反応</span><strong data-expected-signal>${escapeHtml(tutorial.expectedSignal)}</strong></div>
           </div>
           <div class="answer-panel">
             <span class="section-label">ここに答える</span>
@@ -2012,6 +2012,10 @@
             answerTutorialQuestion();
           }
         });
+        wireAnswerChips(box);
+      }
+
+      function wireAnswerChips(box = document.querySelector("#answerBox")) {
         document.querySelectorAll(".answer-chip").forEach((chip) => {
           chip.addEventListener("click", () => {
             box.value = chip.dataset.answer || "";
@@ -2117,9 +2121,10 @@
         state.lastAnswer = answer;
         state.lastAnsweredQuestion = question;
         stage.value = resolvedStage;
+        applyAgentReplyAsNextStep(question, agentReply, resolvedStage);
         box.value = "";
         setProgress(agentReply.nextInstruction || structuredMessage || "回答を反映して、次の手順を生成しています。");
-        run();
+        saveDraft();
       }
 
       function isNaturalFeedback(text) {
@@ -2165,6 +2170,7 @@
               title: response.title || "回答を受け取りました",
               body: response.body || "次の作業に反映します。",
               nextInstruction: response.nextInstruction || "",
+              nextQuestion: response.nextQuestion || response.nextInstruction || "",
               nextStage: response.nextStage || "",
               suggestedChips: response.suggestedChips || [],
               confidence: response.confidence,
@@ -2183,6 +2189,87 @@
           console.warn("tutorial/respond fallback", error);
         }
         return buildAgentReply(question, answer, structuredMessage);
+      }
+
+      function applyAgentReplyAsNextStep(previousQuestion, reply, resolvedStage) {
+        const nextQuestion = chooseNextQuestionFromReply(reply, previousQuestion);
+        if (!nextQuestion) return;
+        state.latestQuestion = nextQuestion;
+
+        const questionEl = document.querySelector("#tutorial .answer-question");
+        if (questionEl) questionEl.textContent = nextQuestion;
+
+        const box = document.querySelector("#answerBox");
+        if (box) {
+          box.placeholder = placeholderForQuestion(nextQuestion);
+          box.value = "";
+          box.focus();
+        }
+
+        const chips = answerChipsFor(nextQuestion, reply);
+        const chipWrap = document.querySelector("#tutorial .answer-chips");
+        if (chipWrap) {
+          chipWrap.innerHTML = chips.map((chip) => `<button class="chip small answer-chip" type="button" data-answer="${escapeHtml(chip)}">${escapeHtml(chip)}</button>`).join("");
+          wireAnswerChips(box);
+        }
+
+        const nextQuestionValue = document.querySelector("[data-next-question]");
+        if (nextQuestionValue) nextQuestionValue.textContent = nextQuestion;
+
+        const nextActionValue = document.querySelector("[data-next-action]");
+        if (nextActionValue) nextActionValue.textContent = reply.nextInstruction || nextQuestion;
+
+        const expectedSignalValue = document.querySelector("[data-expected-signal]");
+        if (expectedSignalValue) expectedSignalValue.textContent = expectedSignalForStage(resolvedStage);
+
+        const stageStrip = document.querySelector("#tutorial .stage-strip");
+        if (stageStrip) stageStrip.outerHTML = renderStageStrip(resolvedStage);
+
+        const nextCard = document.querySelector("#tutorial .next-card");
+        if (nextCard) nextCard.outerHTML = renderNextCard(resolvedStage, { nextAction: reply.nextInstruction || nextQuestion });
+
+        const stagePill = document.querySelector("#tutorial .meta .pill.good");
+        if (stagePill) stagePill.textContent = stageLabelFor(resolvedStage);
+      }
+
+      function chooseNextQuestionFromReply(reply, previousQuestion = "") {
+        const candidates = [
+          reply?.nextQuestion,
+          reply?.nextInstruction,
+          reply?.tutorialPreview?.tutorial?.nextQuestion,
+        ].map((item) => String(item || "").trim()).filter(Boolean);
+        return candidates.find((item) => item !== previousQuestion) || candidates[0] || "";
+      }
+
+      function expectedSignalForStage(stageId) {
+        const table = {
+          parts_check: "手元の部品が一行で分かる",
+          minimal_circuit: "次に確認する配線ポイントが一つに絞られる",
+          firmware_upload: "コードを書き込める状態になる",
+          observe_serial: "起動メッセージや値を見られる",
+          debug_triage: "原因候補を一つずつ潰せる",
+          standard_build: "作品らしい反応を一つ足せる",
+          enclosure: "抜けにくく安全に固定できる",
+          extension: "追加機能を一つ選べる",
+          completion_log: "完成ログを残せる",
+        };
+        return table[stageId] || "次の一手が分かる";
+      }
+
+      function stageLabelFor(stageId) {
+        const table = {
+          orient: "入口を決める",
+          parts_check: "手元の部品確認",
+          minimal_circuit: "最小回路",
+          firmware_upload: "コード書き込み",
+          observe_serial: "シリアル観察",
+          debug_triage: "デバッグ",
+          standard_build: "作品化",
+          enclosure: "固定と外装",
+          extension: "拡張",
+          completion_log: "完成ログ",
+        };
+        return table[stageId] || stageId || "次の段階";
       }
 
       function applyAnswerToStructuredFields(question, answer) {
