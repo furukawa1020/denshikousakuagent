@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, tutorial_answer_classifier_inference, tutorial_response_inference, wirechecknet_inference
+from ai_bridge import circuit_validator_inference, inventory_matcher_inference, neural_agent_inference, neural_bom_inference, runtime_health, skillrec_inference, transformer_intent, transformer_project_graph, tutorial_agent_inference, tutorial_answer_classifier_inference, tutorial_response_inference, tutorial_stage_classifier_inference, wirechecknet_inference
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1326,7 +1326,19 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     }
     answer_classifier = tutorial_answer_classifier_inference(classifier_payload)
     kind, interpreted_by = resolve_free_answer_kind(answer_classifier, fallback_kind)
-    next_stage = next_stage_from_free_answer(question, answer, current_stage, kind, payload)
+    fallback_next_stage = next_stage_from_free_answer(question, answer, current_stage, kind, payload)
+    stage_classifier = tutorial_stage_classifier_inference({
+        **classifier_payload,
+        "interpretedKind": kind,
+        "fallbackStage": "",
+    })
+    next_stage = autonomous_stage_decision(
+        stage_classifier=stage_classifier,
+        current_stage=current_stage,
+        model_stage="",
+        fallback_stage=fallback_next_stage,
+        kind=kind,
+    )
     reply = compose_tutorial_reply(project, question, answer, current_stage, next_stage, kind, payload)
 
     neural_payload = {
@@ -1342,7 +1354,8 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     }
     neural = tutorial_response_inference(neural_payload)
     if neural.get("available"):
-        neural_stage = merge_tutorial_stage(
+        neural_stage = autonomous_stage_decision(
+            stage_classifier=stage_classifier,
             current_stage=current_stage,
             model_stage=str(neural.get("nextStage") or ""),
             fallback_stage=next_stage,
@@ -1379,6 +1392,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
             "nextStage": neural_stage,
             "alignmentScore": neural.get("alignmentScore"),
             "candidateCount": neural.get("candidateCount"),
+            "stageClassifier": stage_classifier if stage_classifier.get("available") else None,
             "suggestedChips": reply["suggestedChips"],
             "confidence": max(confidence_for_free_answer(kind, question, answer), 0.72),
             "tutorialPreview": tutorial if tutorial.get("available") else None,
@@ -1395,7 +1409,8 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
         return result
 
-    resolved_stage = merge_tutorial_stage(
+    resolved_stage = autonomous_stage_decision(
+        stage_classifier=stage_classifier,
         current_stage=current_stage,
         model_stage="",
         fallback_stage=next_stage,
@@ -1431,6 +1446,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "confidence": confidence_for_free_answer(kind, question, answer),
         "tutorialPreview": tutorial if tutorial.get("available") else None,
         "answerClassifier": answer_classifier if answer_classifier.get("available") else None,
+        "stageClassifier": stage_classifier if stage_classifier.get("available") else None,
     }
     log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
     return result
@@ -1473,6 +1489,28 @@ def merge_tutorial_stage(current_stage: str, model_stage: str, fallback_stage: s
     if not ranked:
         return fallback_stage or current_stage
     return max(ranked, key=lambda stage: PROGRESS_STAGE_ORDER.index(stage))
+
+
+def autonomous_stage_decision(
+    stage_classifier: dict[str, Any],
+    current_stage: str,
+    model_stage: str,
+    fallback_stage: str,
+    kind: str,
+) -> str:
+    neural_stage = str(stage_classifier.get("stage") or "")
+    try:
+        neural_confidence = float(stage_classifier.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        neural_confidence = 0.0
+    if stage_classifier.get("available") and neural_stage in STAGE_ORDER and neural_confidence >= 0.52:
+        return neural_stage
+    return merge_tutorial_stage(
+        current_stage=current_stage,
+        model_stage=model_stage,
+        fallback_stage=fallback_stage,
+        kind=kind,
+    )
 
 
 def presentation_kind_for_free_answer(interpreted_kind: str, neural_kind: str, fallback_kind: str) -> str:
