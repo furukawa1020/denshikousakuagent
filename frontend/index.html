@@ -5,24 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lチカのつづき - 制作エージェント</title>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap");
+
       :root {
         color-scheme: light;
-        --bg: #f3f2ec;
-        --panel: #ffffff;
-        --ink: #1f2729;
-        --muted: #657070;
-        --line: #cfd4cd;
-        --line-strong: #9ea8a2;
-        --accent: #0e6f66;
-        --accent-weak: #e6f2ee;
-        --blue: #1e4f8f;
-        --blue-weak: #e8eef6;
-        --warn: #8a5a05;
-        --warn-weak: #fff4d3;
+        --bg: #efece2;
+        --panel: #fffdf7;
+        --paper: #fbf7ec;
+        --ink: #20221f;
+        --muted: #68706b;
+        --line: #d2cbbb;
+        --line-strong: #a79f8f;
+        --accent: #126b5f;
+        --accent-weak: #e4f0eb;
+        --blue: #2b5278;
+        --blue-weak: #e8eef2;
+        --warn: #915f0a;
+        --warn-weak: #fff1c7;
         --danger: #b91c1c;
         --danger-weak: #fee2e2;
-        --code: #172124;
-        --paper: #fbfaf5;
+        --code: #192225;
+        --copper: #b86b2b;
+        --desk: #ded3bd;
+        --font-sans: "Zen Kaku Gothic New", "BIZ UDPGothic", "Yu Gothic UI", "Yu Gothic", "Hiragino Sans", system-ui, sans-serif;
+        --font-display: "Kiwi Maru", "Zen Kaku Gothic New", "Yu Mincho", serif;
       }
 
       * {
@@ -31,9 +37,14 @@
 
       body {
         margin: 0;
-        background: var(--bg);
+        background:
+          linear-gradient(rgba(109, 101, 82, 0.08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(109, 101, 82, 0.07) 1px, transparent 1px),
+          var(--bg);
+        background-size: 24px 24px;
         color: var(--ink);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: var(--font-sans);
+        font-weight: 500;
       }
 
       body.splash-active {
@@ -52,9 +63,10 @@
         gap: 16px;
         align-items: center;
         margin-bottom: 12px;
-        border: 1px solid var(--line);
+        border: 1px solid var(--line-strong);
+        border-left: 6px solid var(--accent);
         background: var(--panel);
-        padding: 12px 14px;
+        padding: 12px 16px;
       }
 
       h1,
@@ -65,12 +77,14 @@
       }
 
       h1 {
-        font-size: 28px;
+        font-family: var(--font-display);
+        font-size: 30px;
+        font-weight: 500;
         letter-spacing: 0;
       }
 
       h2 {
-        font-size: 18px;
+        font-size: 17px;
         letter-spacing: 0;
       }
 
@@ -82,7 +96,7 @@
       .subtitle {
         margin-top: 6px;
         color: var(--muted);
-        line-height: 1.55;
+        line-height: 1.45;
       }
 
       .status {
@@ -150,6 +164,7 @@
         align-self: start;
         position: sticky;
         top: 12px;
+        border-top: 4px solid var(--desk);
       }
 
       .stack {
@@ -159,8 +174,10 @@
 
       label {
         display: block;
-        margin-bottom: 7px;
-        font-weight: 750;
+        margin-bottom: 6px;
+        font-size: 13px;
+        font-weight: 900;
+        color: #32413e;
       }
 
       textarea,
@@ -169,16 +186,16 @@
         width: 100%;
         border: 1px solid var(--line);
         border-radius: 4px;
-        padding: 10px 11px;
+        padding: 9px 10px;
         background: #fff;
         color: var(--ink);
         font: inherit;
       }
 
       textarea {
-        min-height: 116px;
+        min-height: 98px;
         resize: vertical;
-        line-height: 1.55;
+        line-height: 1.5;
       }
 
       .compact textarea {
@@ -202,7 +219,7 @@
         background: #fff;
         color: var(--ink);
         border-radius: 4px;
-        padding: 7px 10px;
+        padding: 6px 9px;
         cursor: pointer;
         font-size: 14px;
       }
@@ -212,6 +229,7 @@
         background: var(--accent-weak);
         color: #0f4f4a;
         font-weight: 750;
+        box-shadow: inset 0 -2px 0 var(--accent);
       }
 
       .actions {
@@ -224,7 +242,7 @@
       button.primary,
       button.secondary {
         border-radius: 4px;
-        padding: 11px 16px;
+        padding: 10px 15px;
         font-weight: 800;
         cursor: pointer;
         transition: background 0.16s ease, border-color 0.16s ease;
@@ -274,9 +292,9 @@
         place-items: center;
         padding: 22px;
         background:
-          linear-gradient(#e1ddd0 1px, transparent 1px),
-          linear-gradient(90deg, #e1ddd0 1px, transparent 1px),
-          #f1efe5;
+          linear-gradient(rgba(87, 79, 61, 0.1) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(87, 79, 61, 0.09) 1px, transparent 1px),
+          #efe8d8;
         background-size: 24px 24px;
         transition: opacity 0.48s ease, visibility 0.48s ease;
       }
@@ -298,7 +316,8 @@
         gap: 18px;
         align-items: center;
         padding: 16px;
-        border: 2px solid #b8b3a5;
+        border: 2px solid #9f9887;
+        border-left: 8px solid var(--accent);
         border-radius: 4px;
         background: var(--paper);
       }
@@ -330,6 +349,8 @@
       }
 
       .splash-copy h2 {
+        font-family: var(--font-display);
+        font-weight: 500;
         font-size: clamp(34px, 4.6vw, 58px);
         line-height: 1.08;
         letter-spacing: 0;
@@ -338,8 +359,8 @@
       .splash-copy p {
         max-width: 560px;
         color: #3f4e50;
-        font-size: 16px;
-        line-height: 1.72;
+        font-size: 15px;
+        line-height: 1.65;
       }
 
       .splash-tags {
@@ -566,8 +587,19 @@
 
       .result-block h2 {
         border-bottom: 1px solid var(--line);
-        background: #f7f6ef;
-        padding: 10px 12px;
+        background: #f3efe5;
+        padding: 9px 12px;
+        font-size: 16px;
+        position: relative;
+      }
+
+      .result-block h2::before {
+        content: "";
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        margin-right: 8px;
+        background: var(--copper);
       }
 
       .cards {
@@ -578,7 +610,7 @@
       }
 
       .project-card {
-        padding: 12px;
+        padding: 10px 12px;
         display: grid;
         grid-template-columns: minmax(0, 1.2fr) minmax(160px, 0.8fr);
         gap: 8px 14px;
@@ -600,6 +632,10 @@
 
       .project-card .subtitle {
         margin-top: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
       }
 
       .project-card .meta {
@@ -705,7 +741,7 @@
         padding: 12px;
         border-left: 4px solid var(--accent);
         border-radius: 0;
-        background: #f7fbf8;
+        background: #f6fbf7;
       }
 
       .section-label {
@@ -753,6 +789,79 @@
         line-height: 1.5;
       }
 
+      .tutorial-brief {
+        margin: 12px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .tutorial-brief h3 {
+        margin-top: 4px;
+        font-size: 18px;
+        line-height: 1.35;
+      }
+
+      .stage-badge {
+        border: 1px solid #a9cfc7;
+        background: var(--accent-weak);
+        color: #0d514b;
+        padding: 5px 8px;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .action-board {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(180px, 0.65fr);
+        margin: 0 12px 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .action-cell {
+        padding: 11px 12px;
+        border-right: 1px solid var(--line);
+      }
+
+      .action-cell:last-child {
+        border-right: 0;
+      }
+
+      .action-cell span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        margin-bottom: 4px;
+      }
+
+      .action-cell strong {
+        display: block;
+        color: var(--ink);
+        line-height: 1.45;
+      }
+
+      .detail-drawer {
+        margin: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .detail-drawer summary {
+        cursor: pointer;
+        padding: 9px 11px;
+        font-weight: 900;
+        color: #33413f;
+        background: #f6f3ea;
+      }
+
+      .detail-drawer .timeline,
+      .detail-drawer ul {
+        margin: 10px 12px 12px;
+      }
+
       .stage-strip {
         display: grid;
         grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -788,25 +897,6 @@
       .stage-chip.current {
         background: var(--accent-weak);
         box-shadow: inset 0 -3px 0 var(--accent);
-      }
-
-      .next-card {
-        display: grid;
-        gap: 6px;
-        margin: 12px;
-        border: 1px solid #d8e6e2;
-        border-radius: 0;
-        background: #fff;
-        padding: 12px;
-      }
-
-      .next-card strong {
-        color: #0f4f4a;
-      }
-
-      .next-card p {
-        color: #45575b;
-        line-height: 1.55;
       }
 
       .agent-reply {
@@ -1150,6 +1240,20 @@
           grid-template-columns: 1fr 1fr;
         }
 
+        .tutorial-brief,
+        .action-board {
+          grid-template-columns: 1fr;
+        }
+
+        .action-cell {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .action-cell:last-child {
+          border-bottom: 0;
+        }
+
         .project-card {
           grid-template-columns: 1fr;
         }
@@ -1289,9 +1393,9 @@
             </svg>
             <span>Lチカのつづき</span>
           </div>
-          <span class="splash-kicker">初めの一歩のその先まで、手順に落とす制作エージェント</span>
+          <span class="splash-kicker">作業台に置く、次の一手ノート</span>
           <h2>Lチカのつづき</h2>
-          <p>Lチカの次が千里の道に見えるときに、気分、予算、手元の部品から「今日できる一手」まで整理します。</p>
+          <p>Lチカの次が遠すぎる時に、手元の部品と予算から今日できる制作手順へ落とします。</p>
           <div class="splash-tags">
             <span>制作診断</span>
             <span>作品発見</span>
@@ -1317,7 +1421,7 @@
             </svg>
             <h1>Lチカのつづき</h1>
           </div>
-          <p class="subtitle">はじめの一歩のその先まで伴走する制作エージェント。気分・予算・持ち物・詰まり具合から、作るもの、買うもの、配線、コード、次の一手までつなぎます。</p>
+          <p class="subtitle">迷いを、今日つくる一手に変える制作ノート。</p>
         </div>
         <div class="status">
           <span class="dot" id="dot"></span>
@@ -1328,7 +1432,7 @@
       <div class="layout">
         <section class="panel stack">
           <div>
-            <label for="intent">今の状態</label>
+            <label for="intent">制作メモ</label>
             <textarea id="intent">作りたいものはまだ決まっていない。予算は5000円。かわいいものがいい。ESP32とLEDと抵抗とブレッドボードがあります。</textarea>
           </div>
 
@@ -1366,13 +1470,13 @@
           </div>
 
           <div class="compact">
-            <label for="inventory">持っている部品</label>
+            <label for="inventory">部品棚</label>
             <textarea id="inventory">ESP32, LED, 220Ω抵抗, ブレッドボード, ジャンパ線, USBケーブル</textarea>
           </div>
 
           <div class="form-grid">
             <div>
-              <label for="stage">今の段階</label>
+              <label for="stage">進み具合</label>
               <select id="stage">
                 <option value="orient" selected>まだ選んでいる</option>
                 <option value="parts_check">部品確認中</option>
@@ -1385,7 +1489,7 @@
               </select>
             </div>
             <div>
-              <label for="symptom">症状</label>
+              <label for="symptom">困りごと</label>
               <select id="symptom">
                 <option value="none" selected>まだない</option>
                 <option value="led_not_lighting">LEDが光らない</option>
@@ -1404,24 +1508,24 @@
 
         <section class="result-grid">
           <div class="result-block">
-            <h2>おすすめ作品</h2>
+            <h2>候補</h2>
             <div id="projects" class="cards">
               <p class="empty">まだ生成していません。</p>
             </div>
           </div>
 
           <div class="result-block">
-            <h2>自律チュートリアル</h2>
+            <h2>今日の一手</h2>
             <div id="tutorial" class="empty">入力に合わせて次の一手を出します。</div>
           </div>
 
           <div class="two-col">
             <div class="result-block">
-              <h2>推論ログ</h2>
+              <h2>制作ログ</h2>
               <div id="neural" class="empty">待機中</div>
             </div>
             <div class="result-block">
-              <h2>予算と部品</h2>
+              <h2>部品・予算</h2>
               <div id="bom" class="empty">待機中</div>
             </div>
           </div>
@@ -1434,7 +1538,7 @@
 
           <div class="two-col">
             <div class="result-block">
-              <h2>デバッグ判断</h2>
+              <h2>切り分け</h2>
               <div id="debug" class="empty">待機中</div>
             </div>
             <div class="result-block">
@@ -1952,7 +2056,7 @@
           return `
             <article class="project-card">
               <h3>${escapeHtml(title)}</h3>
-              <p class="subtitle">${escapeHtml(summary)}</p>
+              <p class="subtitle">${escapeHtml(compactText(summary, 72))}</p>
               <div class="meta">
                 ${cost ? `<span class="pill good">${escapeHtml(String(cost))}</span>` : ""}
                 ${difficulty ? `<span class="pill">${escapeHtml(String(difficulty))}</span>` : ""}
@@ -2007,25 +2111,23 @@
         }
         const question = tutorial.nextQuestion || "今見えている状態を一言で教えてください。";
         const chips = answerChipsFor(question, state.lastAgentReply);
+        const compactTitle = compactText(tutorial.nextAction || tutorial.title, 48);
         state.latestQuestion = question;
         target.innerHTML = `
-          <div class="meta">
-            <span class="pill good">${escapeHtml(result.stage?.label || "")}</span>
-            <span class="pill info">${escapeHtml(result.route?.label || "")}</span>
-            <span class="pill">${escapeHtml(result.checkpoint?.label || "")}</span>
-            <span class="pill">自走度 ${percent(result.autonomyScore)}</span>
+          <div class="tutorial-brief">
+            <div>
+              <span class="section-label">今日の一手</span>
+              <h3>${escapeHtml(compactTitle)}</h3>
+            </div>
+            <span class="stage-badge" data-stage-label>${escapeHtml(stageLabelFor(stageId))}</span>
           </div>
-          <h3 style="margin-top:12px">${escapeHtml(tutorial.title)}</h3>
-          <p class="subtitle">${escapeHtml(tutorial.teacherNote)}</p>
           ${renderStageStrip(stageId)}
-          ${renderNextCard(stageId, tutorial)}
-          <div class="kv">
-            <div><span>次の一手</span><strong data-next-action>${escapeHtml(tutorial.nextAction)}</strong></div>
-            <div><span>次の質問</span><strong data-next-question>${escapeHtml(tutorial.nextQuestion)}</strong></div>
-            <div><span>期待する反応</span><strong data-expected-signal>${escapeHtml(tutorial.expectedSignal)}</strong></div>
+          <div class="action-board">
+            <div class="action-cell"><span>やること</span><strong data-next-action>${escapeHtml(compactText(tutorial.nextAction, 58))}</strong></div>
+            <div class="action-cell"><span>期待</span><strong data-expected-signal>${escapeHtml(compactText(tutorial.expectedSignal, 34))}</strong></div>
           </div>
           <div class="answer-panel">
-            <span class="section-label">ここに答える</span>
+            <span class="section-label">見えたこと</span>
             <p class="answer-question">${escapeHtml(question)}</p>
             <textarea id="answerBox" class="answer-box" placeholder="${escapeHtml(placeholderForQuestion(question))}"></textarea>
             <div class="answer-tools">
@@ -2034,21 +2136,13 @@
               </div>
               <button class="primary answer-submit" type="button" id="answerButton">回答して次へ</button>
             </div>
-            <p class="hint">いま見えている状態をそのまま書けば大丈夫です。回答は左の「今の状態」に追記され、次の手順を作り直します。</p>
+            <p class="hint">短くでOK。分からない時は「分からない」で進めます。</p>
           </div>
           ${state.lastAgentReply ? renderAgentReplyHtml(state.lastAgentReply) : ""}
-          <ul>${(tutorial.checklist || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-          <div class="timeline">
-            ${(tutorial.runbook || []).map((step) => `
-              <div class="step">
-                <div class="num">${step.step}</div>
-                <div>
-                  <strong>${escapeHtml(step.title)}</strong>
-                  <p class="subtitle">${escapeHtml(step.goal)}</p>
-                </div>
-              </div>
-            `).join("")}
-          </div>
+          <details class="detail-drawer">
+            <summary>手順メモ</summary>
+            <ul>${(tutorial.checklist || []).slice(0, 4).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+          </details>
         `;
         wireTutorialAnswerControls();
       }
@@ -2086,22 +2180,6 @@
             }).join("")}
           </div>
         `;
-      }
-
-      function renderNextCard(stageId, tutorial) {
-        const table = {
-          orient: ["まずは迷いを減らします", "気分、予算、持っている部品のどれか一つだけで大丈夫です。作品候補は3つに絞ります。"],
-          parts_check: ["部品名はあいまいでOK", "箱や机の上にあるものを一行で並べてください。足りないものはBOM側で分けます。"],
-          minimal_circuit: ["最小構成だけ先に動かします", "完成形に行く前に、LED・抵抗・GNDだけを短く確認します。"],
-          firmware_upload: ["コードとピンを合わせます", "配線先のGPIOとコードの番号が同じかを見てから書き込みます。"],
-          observe_serial: ["シリアルで現象を見ます", "光った/光らないだけでなく、値が出るかを見ると原因を絞れます。"],
-          debug_triage: ["一つずつ戻します", "物理、電源、コード、ライブラリの順に、原因を一つだけ潰します。"],
-          standard_build: ["作品っぽさを足します", "ブザー、表情、ケースなどを一つだけ追加して、見せられる形にします。"],
-          enclosure: ["抜けにくく固定します", "金属ケースは避け、USBや配線に無理が出ない固定にします。"],
-          extension: ["拡張は一個だけ", "音、動き、ログのどれか一つを足して、動いた状態を壊さず進めます。"],
-        };
-        const [title, body] = table[stageId] || ["次の一手を短く進めます", tutorial?.nextAction || "今の状態に合わせて手順を作り直します。"];
-        return `<div class="next-card"><strong>${escapeHtml(title)}</strong><p>${escapeHtml(body)}</p></div>`;
       }
 
       function answerChipsFor(question, reply = null) {
@@ -2265,11 +2343,8 @@
           wireAnswerChips(box);
         }
 
-        const nextQuestionValue = document.querySelector("[data-next-question]");
-        if (nextQuestionValue) nextQuestionValue.textContent = nextQuestion;
-
         const nextActionValue = document.querySelector("[data-next-action]");
-        if (nextActionValue) nextActionValue.textContent = reply.nextInstruction || nextQuestion;
+        if (nextActionValue) nextActionValue.textContent = compactText(reply.nextInstruction || nextQuestion, 58);
 
         const expectedSignalValue = document.querySelector("[data-expected-signal]");
         if (expectedSignalValue) expectedSignalValue.textContent = expectedSignalForStage(resolvedStage);
@@ -2277,10 +2352,7 @@
         const stageStrip = document.querySelector("#tutorial .stage-strip");
         if (stageStrip) stageStrip.outerHTML = renderStageStrip(resolvedStage);
 
-        const nextCard = document.querySelector("#tutorial .next-card");
-        if (nextCard) nextCard.outerHTML = renderNextCard(resolvedStage, { nextAction: reply.nextInstruction || nextQuestion });
-
-        const stagePill = document.querySelector("#tutorial .meta .pill.good");
+        const stagePill = document.querySelector("[data-stage-label]");
         if (stagePill) stagePill.textContent = stageLabelFor(resolvedStage);
       }
 
@@ -2716,6 +2788,12 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#039;");
+      }
+
+      function compactText(value, maxLength = 72) {
+        const text = String(value || "").replace(/\s+/g, " ").trim();
+        if (text.length <= maxLength) return text;
+        return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
       }
 
       function percent(value) {
