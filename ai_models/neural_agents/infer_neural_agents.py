@@ -25,123 +25,19 @@ from .taxonomy import (
 )
 
 
-CODEBOOK = {
-    "light_charm": """// NeuralAgent selected firmware: Dark-reactive LED charm
-const int LED_PIN = 5;
-const int SENSOR_PIN = A0;
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
+PROJECT_VARIANTS = {
+    "light_charm": ["light_charm_minimal", "light_charm_debug"],
+    "desk_pet": ["desk_pet_led", "desk_pet_buzzer"],
+    "plant_ping": ["plant_ping_led", "plant_ping_buzzer"],
+    "posture_guard": ["posture_guard_led", "posture_guard_buzzer"],
+    "temp_face": ["temp_face_serial", "temp_face_i2c_ready"],
 }
 
-void loop() {
-  int lightValue = analogRead(SENSOR_PIN);
-  bool isDark = lightValue < 450;
-  digitalWrite(LED_PIN, isDark ? HIGH : LOW);
-  Serial.print("light=");
-  Serial.print(lightValue);
-  Serial.print(" dark=");
-  Serial.println(isDark);
-  delay(200);
-}
-""",
-    "desk_pet": """// NeuralAgent selected firmware: Proximity desk pet
-const int LED_PIN = 5;
-const int BUZZER_PIN = 18;
-const int DISTANCE_PIN = 21;
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(DISTANCE_PIN, INPUT);
-}
-
-void loop() {
-  int nearSignal = digitalRead(DISTANCE_PIN);
-  digitalWrite(LED_PIN, nearSignal == HIGH ? HIGH : LOW);
-  if (nearSignal == HIGH) {
-    tone(BUZZER_PIN, 880, 80);
-  }
-  Serial.print("near=");
-  Serial.println(nearSignal);
-  delay(150);
-}
-""",
-    "plant_ping": """// NeuralAgent selected firmware: Plant watering notifier
-const int LED_PIN = 5;
-const int BUZZER_PIN = 18;
-const int SOIL_PIN = A0;
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-}
-
-void loop() {
-  int soilValue = analogRead(SOIL_PIN);
-  bool dry = soilValue < 420;
-  digitalWrite(LED_PIN, dry ? HIGH : LOW);
-  if (dry) {
-    tone(BUZZER_PIN, 988, 70);
-  }
-  Serial.print("soil=");
-  Serial.print(soilValue);
-  Serial.print(" dry=");
-  Serial.println(dry);
-  delay(500);
-}
-""",
-    "posture_guard": """// NeuralAgent selected firmware: Posture alert device
-const int LED_PIN = 5;
-const int BUZZER_PIN = 18;
-const int DISTANCE_PIN = 21;
-
-void setup() {
-  Serial.begin(115200);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(DISTANCE_PIN, INPUT);
-}
-
-void loop() {
-  int tooClose = digitalRead(DISTANCE_PIN);
-  digitalWrite(LED_PIN, tooClose == HIGH ? HIGH : LOW);
-  if (tooClose == HIGH) {
-    tone(BUZZER_PIN, 1200, 60);
-  }
-  Serial.print("tooClose=");
-  Serial.println(tooClose);
-  delay(200);
-}
-""",
-    "temp_face": """// NeuralAgent selected firmware: Temperature face display
-#include <Wire.h>
-
-const int TEMP_PIN = A0;
-
-void setup() {
-  Serial.begin(115200);
-}
-
-void loop() {
-  int raw = analogRead(TEMP_PIN);
-  float normalized = raw / 1023.0;
-  Serial.print("tempRaw=");
-  Serial.print(raw);
-  Serial.print(" face=");
-  if (normalized > 0.65) {
-    Serial.println("hot");
-  } else if (normalized < 0.35) {
-    Serial.println("cold");
-  } else {
-    Serial.println("comfortable");
-  }
-  delay(500);
-}
-""",
+BOARD_PIN_PROFILES = {
+    "arduino_uno": ["arduino_default"],
+    "esp32": ["esp32_default", "esp32_grove_safe"],
+    "m5stack": ["m5stack_grove"],
+    "pico": ["pico_default"],
 }
 
 
@@ -186,16 +82,25 @@ class NeuralAgentInference:
         pin_profile_probs = outputs["pin_profile_logits"][0].softmax(dim=-1).detach().cpu()
 
         risk_index = calibrated_risk_index(safety_probs, risk_probs)
-        firmware_index = int(firmware_probs.argmax())
-        firmware_id = FIRMWARE_CLASSES[firmware_index]
-        firmware_variant_index = int(firmware_variant_probs.argmax())
-        firmware_variant_id = FIRMWARE_VARIANTS[firmware_variant_index]
-        board_index = int(board_probs.argmax())
-        board_id = BOARD_CLASSES[board_index]
-        pin_profile_index = int(pin_profile_probs.argmax())
-        pin_profile_id = PIN_PROFILES[pin_profile_index]
-        code = render_firmware_code(firmware_id, firmware_variant_id, board_id, pin_profile_id)
-        debug_ranked = debug_probs.argsort(descending=True).tolist()
+        firmware_id = select_firmware_id(payload, text, firmware_probs)
+        firmware_index = FIRMWARE_CLASSES.index(firmware_id)
+        firmware_variant_id = select_firmware_variant(payload, text, firmware_id, firmware_variant_probs)
+        firmware_variant_index = FIRMWARE_VARIANTS.index(firmware_variant_id)
+        board_id = select_board_id(payload, text, board_probs)
+        board_index = BOARD_CLASSES.index(board_id)
+        pin_profile_id = select_pin_profile(payload, text, board_id, pin_profile_probs)
+        pin_profile_index = PIN_PROFILES.index(pin_profile_id)
+        debug_scores = calibrated_debug_scores(payload, text, debug_probs)
+        debug_ranked = sorted(range(len(DEBUG_CAUSES)), key=lambda index: debug_scores[index], reverse=True)
+        primary_debug = DEBUG_CAUSES[debug_ranked[0]]
+        code = render_firmware_code(
+            firmware_id,
+            firmware_variant_id,
+            board_id,
+            pin_profile_id,
+            primary_debug=primary_debug,
+            stage=str(payload.get("nextStage") or payload.get("currentStage") or ""),
+        )
         safety_ranked = safety_probs.argsort(descending=True).tolist()
         active_safety = [
             {"label": SAFETY_LABELS[index], "score": round(float(safety_probs[index]), 4)}
@@ -206,7 +111,7 @@ class NeuralAgentInference:
             {
                 "cause": DEBUG_CAUSES[index],
                 "label": DEBUG_LABELS[DEBUG_CAUSES[index]],
-                "score": round(float(debug_probs[index]), 4),
+                "score": round(float(debug_scores[index]), 4),
             }
             for index in debug_ranked[:5]
         ]
@@ -250,8 +155,15 @@ class NeuralAgentInference:
                 },
                 "language": "Arduino C++",
                 "code": code,
-                "generationMode": "neural_multiclass_codebook",
+                "generationMode": "neural_multiclass_contextual_decode",
                 "staticChecks": static_checks(code),
+            },
+            "decisionTrace": {
+                "firmwareDecoder": "project-conditioned neural class",
+                "variantDecoder": "project-compatible neural variant",
+                "boardDecoder": "selected-board conditioned neural class",
+                "pinDecoder": "board-compatible neural pin profile",
+                "debugDecoder": "symptom-conditioned neural ranking",
             },
         }
 
@@ -297,17 +209,195 @@ def calibrated_risk_index(safety_probs: torch.Tensor, risk_probs: torch.Tensor) 
     return int(risk_probs.argmax())
 
 
+def select_firmware_id(payload: dict[str, Any], text: str, firmware_probs: torch.Tensor) -> str:
+    explicit = str(payload.get("projectId") or payload.get("project_id") or "").strip()
+    if explicit in FIRMWARE_CLASSES:
+        return explicit
+    lowered = text.lower()
+    for project in FIRMWARE_CLASSES:
+        if f"projectid {project}" in lowered or f"project: {project}" in lowered:
+            return project
+    return FIRMWARE_CLASSES[int(firmware_probs.argmax())]
+
+
+def select_firmware_variant(payload: dict[str, Any], text: str, project_id: str, variant_probs: torch.Tensor) -> str:
+    allowed = PROJECT_VARIANTS.get(project_id, FIRMWARE_VARIANTS)
+    lowered = text.lower()
+    explicit = str(payload.get("firmwareVariant") or payload.get("firmware_variant") or "").strip()
+    if explicit in allowed:
+        return explicit
+    for variant in allowed:
+        if variant.lower() in lowered:
+            return variant
+    allowed_indexes = [FIRMWARE_VARIANTS.index(variant) for variant in allowed]
+    best_index = max(allowed_indexes, key=lambda index: float(variant_probs[index]))
+    return FIRMWARE_VARIANTS[best_index]
+
+
+def select_board_id(payload: dict[str, Any], text: str, board_probs: torch.Tensor) -> str:
+    explicit = str(payload.get("board") or payload.get("boardClass") or payload.get("board_class") or "").strip()
+    if explicit in BOARD_CLASSES:
+        return explicit
+    lowered = text.lower()
+    aliases = {
+        "arduino_uno": ["arduino_uno", "arduino uno"],
+        "esp32": ["esp32"],
+        "m5stack": ["m5stack", "m5"],
+        "pico": ["pico", "raspberry pi pico"],
+    }
+    for board, names in aliases.items():
+        if any(name in lowered for name in names):
+            return board
+    return BOARD_CLASSES[int(board_probs.argmax())]
+
+
+def select_pin_profile(payload: dict[str, Any], text: str, board_id: str, pin_probs: torch.Tensor) -> str:
+    allowed = BOARD_PIN_PROFILES.get(board_id, PIN_PROFILES)
+    explicit = str(payload.get("pinProfile") or payload.get("pin_profile") or "").strip()
+    if explicit in allowed:
+        return explicit
+    lowered = text.lower()
+    for profile in allowed:
+        if profile.lower() in lowered:
+            return profile
+    allowed_indexes = [PIN_PROFILES.index(profile) for profile in allowed]
+    best_index = max(allowed_indexes, key=lambda index: float(pin_probs[index]))
+    return PIN_PROFILES[best_index]
+
+
+def calibrated_debug_scores(payload: dict[str, Any], text: str, debug_probs: torch.Tensor) -> list[float]:
+    scores = [float(value) for value in debug_probs.tolist()]
+    question = str(payload.get("question") or payload.get("lastQuestion") or "")
+    answer = str(payload.get("answer") or payload.get("lastAnswer") or "")
+    interpreted = str(payload.get("interpreted") or payload.get("lastInterpreted") or "")
+    next_instruction = str(payload.get("nextInstruction") or "")
+    evidence = " ".join([
+        text,
+        str(payload.get("symptom") or ""),
+        str(payload.get("compileLog") or ""),
+        str(payload.get("serialLog") or ""),
+        question,
+        answer,
+        interpreted,
+        next_instruction,
+    ]).lower()
+
+    boosts = {
+        "usb_port_or_driver": ["upload_failed", "com", "port", "usb", "書き込", "アップロード", "checkpoint", "認識", "ポート"],
+        "wrong_pin_mapping": ["wrong pin", "gpio番号", "ピン番号", "番号が違", "配線先", "コードと配線"],
+        "missing_gnd": ["gnd", "ground", "グランド", "共通", "マイナス"],
+        "led_polarity_or_resistor": ["led_not_lighting", "led", "光らない", "抵抗", "極性", "長い足", "短い足"],
+        "sensor_power_or_signal": ["sensor_static", "sensor", "センサー", "値が変わ", "値が出", "analog", "sig"],
+        "library_missing": ["library", "no such file", "ライブラリ", "ボードパッケージ", "compile", "コンパイル"],
+        "brownout_power": ["brownout", "reset", "電源", "落ちる", "再起動", "モーター", "サーボ"],
+        "buzzer_pin_or_polarity": ["buzzer", "tone", "ブザー", "鳴らない", "音"],
+    }
+    for cause, tokens in boosts.items():
+        index = DEBUG_CAUSES.index(cause)
+        if any(token in evidence for token in tokens):
+            scores[index] += 1.25
+
+    symptom = str(payload.get("symptom") or "").strip()
+    direct = {
+        "upload_failed": "usb_port_or_driver",
+        "app_stuck_after_checkpoint": "usb_port_or_driver",
+        "sensor_static": "sensor_power_or_signal",
+        "led_not_lighting": "led_polarity_or_resistor",
+    }.get(symptom)
+    if direct:
+        scores[DEBUG_CAUSES.index(direct)] += 1.75
+
+    apply_answer_progress(scores, question, answer, interpreted, next_instruction)
+
+    if "brownout_power" in DEBUG_CAUSES and not any(token in evidence for token in ["brownout", "reset", "電源", "落ちる", "再起動", "モーター", "サーボ"]):
+        scores[DEBUG_CAUSES.index("brownout_power")] *= 0.35
+
+    total = sum(max(score, 0.0001) for score in scores)
+    return [max(score, 0.0001) / total for score in scores]
+
+
+def apply_answer_progress(scores: list[float], question: str, answer: str, interpreted: str, next_instruction: str) -> None:
+    context = f"{question} {interpreted} {next_instruction}".lower()
+    checked_context = f"{question} {interpreted}".lower()
+    answer_text = answer.lower()
+    ok_answer = any(token in answer_text for token in [
+        "yes",
+        "ok",
+        "done",
+        "できた",
+        "大丈夫",
+        "合って",
+        "つながって",
+        "入って",
+        "見え",
+        "光った",
+        "鳴った",
+        "変わった",
+        "出た",
+        "はい",
+    ])
+    bad_answer = any(token in answer_text for token in [
+        "no",
+        "ng",
+        "だめ",
+        "違う",
+        "ない",
+        "できない",
+        "光らない",
+        "鳴らない",
+        "変わらない",
+        "出ない",
+        "分からない",
+        "わからない",
+    ])
+
+    topics = [
+        ("led_polarity_or_resistor", ["led", "長い足", "短い足", "抵抗", "極性"]),
+        ("missing_gnd", ["gnd", "ground", "共通", "グランド"]),
+        ("wrong_pin_mapping", ["gpio", "ピン番号", "配線先", "物理ピン", "コード"]),
+        ("sensor_power_or_signal", ["sensor", "センサー", "値", "sig", "analog"]),
+        ("usb_port_or_driver", ["usb", "com", "ポート", "書き込", "アップロード", "checkpoint"]),
+        ("buzzer_pin_or_polarity", ["buzzer", "ブザー", "tone", "音"]),
+    ]
+    peak_score = max(scores)
+
+    for cause, tokens in topics:
+        if any(token in context for token in tokens):
+            index = DEBUG_CAUSES.index(cause)
+            if ok_answer:
+                scores[index] *= 0.08
+            elif bad_answer:
+                scores[index] += 1.8
+
+    if ok_answer and any(token in context for token in ["led", "長い足", "抵抗", "極性"]):
+        scores[DEBUG_CAUSES.index("led_polarity_or_resistor")] *= 0.35
+        scores[DEBUG_CAUSES.index("wrong_pin_mapping")] = max(scores[DEBUG_CAUSES.index("wrong_pin_mapping")], peak_score * 1.15)
+        scores[DEBUG_CAUSES.index("missing_gnd")] = max(scores[DEBUG_CAUSES.index("missing_gnd")], peak_score * 0.55)
+    if ok_answer and any(token in context for token in ["gnd", "ground", "共通"]):
+        scores[DEBUG_CAUSES.index("missing_gnd")] *= 0.35
+        scores[DEBUG_CAUSES.index("wrong_pin_mapping")] = max(scores[DEBUG_CAUSES.index("wrong_pin_mapping")], peak_score * 1.05)
+        scores[DEBUG_CAUSES.index("sensor_power_or_signal")] = max(scores[DEBUG_CAUSES.index("sensor_power_or_signal")], peak_score * 0.5)
+    if ok_answer and any(token in checked_context for token in ["ピン番号", "gpio", "配線先"]):
+        scores[DEBUG_CAUSES.index("wrong_pin_mapping")] *= 0.5
+        scores[DEBUG_CAUSES.index("sensor_power_or_signal")] = max(scores[DEBUG_CAUSES.index("sensor_power_or_signal")], peak_score * 0.85)
+        scores[DEBUG_CAUSES.index("library_missing")] = max(scores[DEBUG_CAUSES.index("library_missing")], peak_score * 0.35)
+    if "次" in next_instruction and any(token in next_instruction.lower() for token in ["ピン", "gpio", "コード"]):
+        scores[DEBUG_CAUSES.index("wrong_pin_mapping")] = max(scores[DEBUG_CAUSES.index("wrong_pin_mapping")], peak_score * 1.25)
+    if "次" in next_instruction and any(token in next_instruction.lower() for token in ["値", "シリアル", "センサー"]):
+        scores[DEBUG_CAUSES.index("sensor_power_or_signal")] += 0.8
+
+
 def next_question(cause: str) -> str:
     questions = {
-        "usb_port_or_driver": "Does the board appear as a serial/COM port when you reconnect it with a data-capable USB cable?",
-        "wrong_pin_mapping": "Which physical pin is the jumper wire connected to, and does it match the pin number in code?",
-        "missing_gnd": "Can you confirm that every module GND is connected to the board GND?",
-        "led_polarity_or_resistor": "Is the LED long leg on the signal side and is a 220-330 ohm resistor in series?",
-        "sensor_power_or_signal": "What value appears in Serial Monitor when you move or touch the sensor?",
-        "library_missing": "What is the first 'No such file' or board package line in the compile log?",
-        "brownout_power": "Does the board reset exactly when the motor, buzzer, or display turns on?",
-        "buzzer_pin_or_polarity": "Is the buzzer positive leg connected to the output pin used by tone()?",
-        "unknown": "What is the smallest observable symptom: upload error, no light, no sound, no sensor change, or reset?",
+        "usb_port_or_driver": "USBケーブルを差し直した時、ボードはCOM/シリアルポートとして表示されますか？",
+        "wrong_pin_mapping": "ジャンパ線が刺さっている物理ピンと、コードのピン番号は同じですか？",
+        "missing_gnd": "すべての部品のGNDが、ボードのGNDと同じ基準につながっていますか？",
+        "led_polarity_or_resistor": "LEDの長い足は信号側で、220〜330Ωの抵抗が直列に入っていますか？",
+        "sensor_power_or_signal": "センサーを動かした時、シリアルモニタの値は変わりますか？",
+        "library_missing": "コンパイルログの最初の No such file または board package 行は何ですか？",
+        "brownout_power": "ブザー、モーター、画面が動いた瞬間にボードが再起動しますか？",
+        "buzzer_pin_or_polarity": "ブザーの＋側は tone() で使っているピンにつながっていますか？",
+        "unknown": "一番小さい症状は、書き込みエラー、光らない、鳴らない、値が変わらない、再起動のどれですか？",
     }
     return questions.get(cause, questions["unknown"])
 
@@ -326,15 +416,25 @@ def skill_hint(cause: str) -> str:
     return hints.get(cause, "debugging")
 
 
-def render_firmware_code(project_id: str, variant_id: str, board_id: str, pin_profile_id: str) -> str:
+def render_firmware_code(
+    project_id: str,
+    variant_id: str,
+    board_id: str,
+    pin_profile_id: str,
+    primary_debug: str = "unknown",
+    stage: str = "",
+) -> str:
     pins = PIN_PROFILE_VALUES[pin_profile_id]
     led = pins["led"]
     buzzer = pins["buzzer"]
     digital = pins["digital"]
     analog = pins["analog"]
     board_label = BOARD_LABELS[board_id]
+    setup_probe = debug_setup_probe(primary_debug, led, buzzer, digital, analog)
+    loop_probe = debug_loop_probe(primary_debug, digital, analog)
     if project_id == "light_charm":
-        return f"""// Neural classification firmware: dark-reactive LED charm
+        return f"""// Lchika-no-tsuzuki firmware: dark-reactive LED charm
+// Debug focus: {primary_debug}
 // Board: {board_label}
 const int LED_PIN = {led};
 const int LIGHT_PIN = {analog};
@@ -343,9 +443,11 @@ const int DARK_THRESHOLD = 450;
 void setup() {{
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
+{setup_probe}
 }}
 
 void loop() {{
+{loop_probe}
   int lightValue = analogRead(LIGHT_PIN);
   bool isDark = lightValue < DARK_THRESHOLD;
   digitalWrite(LED_PIN, isDark ? HIGH : LOW);
@@ -364,7 +466,9 @@ void loop() {{
     tone(BUZZER_PIN, 988, 70);
   }}
 """
-        return f"""// Neural classification firmware: plant watering notifier
+        return f"""// Lchika-no-tsuzuki firmware: plant watering notifier
+// Debug focus: {primary_debug}
+// Variant: {variant_id}
 // Board: {board_label}
 const int LED_PIN = {led};
 const int BUZZER_PIN = {buzzer};
@@ -375,9 +479,11 @@ void setup() {{
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
+{setup_probe}
 }}
 
 void loop() {{
+{loop_probe}
   int soilValue = analogRead(SOIL_PIN);
   bool isDry = soilValue < DRY_THRESHOLD;
   digitalWrite(LED_PIN, isDry ? HIGH : LOW);{buzzer_block}
@@ -396,7 +502,9 @@ void loop() {{
     tone(BUZZER_PIN, 880, 80);
   }}
 """
-        return f"""// Neural classification firmware: proximity desk pet
+        return f"""// Lchika-no-tsuzuki firmware: proximity desk pet
+// Debug focus: {primary_debug}
+// Variant: {variant_id}
 // Board: {board_label}
 const int LED_PIN = {led};
 const int BUZZER_PIN = {buzzer};
@@ -407,9 +515,11 @@ void setup() {{
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(DISTANCE_PIN, INPUT);
+{setup_probe}
 }}
 
 void loop() {{
+{loop_probe}
   int nearSignal = digitalRead(DISTANCE_PIN);
   bool isNear = nearSignal == HIGH;
   digitalWrite(LED_PIN, isNear ? HIGH : LOW);{buzzer_block}
@@ -426,7 +536,9 @@ void loop() {{
     tone(BUZZER_PIN, 1200, 60);
   }}
 """
-        return f"""// Neural classification firmware: posture alert device
+        return f"""// Lchika-no-tsuzuki firmware: posture alert device
+// Debug focus: {primary_debug}
+// Variant: {variant_id}
 // Board: {board_label}
 const int LED_PIN = {led};
 const int BUZZER_PIN = {buzzer};
@@ -437,9 +549,11 @@ void setup() {{
   pinMode(LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
   pinMode(DISTANCE_PIN, INPUT);
+{setup_probe}
 }}
 
 void loop() {{
+{loop_probe}
   int tooCloseSignal = digitalRead(DISTANCE_PIN);
   bool tooClose = tooCloseSignal == HIGH;
   digitalWrite(LED_PIN, tooClose ? HIGH : LOW);{buzzer_block}
@@ -449,16 +563,20 @@ void loop() {{
 }}
 """
     wire_include = "#include <Wire.h>\n\n" if variant_id == "temp_face_i2c_ready" else ""
-    return f"""// Neural classification firmware: temperature face display
+    return f"""// Lchika-no-tsuzuki firmware: temperature face display
+// Debug focus: {primary_debug}
+// Variant: {variant_id}
 // Board: {board_label}
 {wire_include}const int TEMP_PIN = {analog};
 const int HOT_THRESHOLD = 640;
 
 void setup() {{
   Serial.begin(115200);
+{setup_probe}
 }}
 
 void loop() {{
+{loop_probe}
   int tempRaw = analogRead(TEMP_PIN);
   Serial.print("tempRaw=");
   Serial.print(tempRaw);
@@ -470,9 +588,37 @@ void loop() {{
   }} else {{
     Serial.println("comfortable");
   }}
-  delay(500);
+    delay(500);
 }}
 """
+
+
+def debug_setup_probe(primary_debug: str, led: int, buzzer: int, digital: int, analog: Any) -> str:
+    lines = [
+        '  Serial.println("Lchika-no-tsuzuki start");',
+        f'  Serial.println("pins led={led} buzzer={buzzer} digital={digital} analog={analog}");',
+    ]
+    if primary_debug in {"wrong_pin_mapping", "led_polarity_or_resistor"}:
+        lines.extend([
+            "  digitalWrite(LED_PIN, HIGH);",
+            "  delay(250);",
+            "  digitalWrite(LED_PIN, LOW);",
+        ])
+    if primary_debug == "buzzer_pin_or_polarity":
+        lines.append("  tone(BUZZER_PIN, 660, 120);")
+    return "\n".join(lines)
+
+
+def debug_loop_probe(primary_debug: str, digital: int, analog: Any) -> str:
+    if primary_debug == "wrong_pin_mapping":
+        return f'  Serial.println("debug: confirm jumper pin numbers digital={digital}");'
+    if primary_debug == "sensor_power_or_signal":
+        return f'  Serial.println("debug: move sensor and watch values analog={analog} digital={digital}");'
+    if primary_debug == "missing_gnd":
+        return '  Serial.println("debug: all parts must share board GND");'
+    if primary_debug == "usb_port_or_driver":
+        return '  Serial.println("debug: if this line appears, upload and serial are working");'
+    return ""
 
 
 def static_checks(code: str) -> dict[str, Any]:
