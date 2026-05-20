@@ -29,15 +29,15 @@ DEBUG_CAUSES = [
 ]
 
 DEBUG_LABELS = {
-    "usb_port_or_driver": "USB cable, board selection, or driver is likely wrong.",
-    "wrong_pin_mapping": "The code pin and wiring pin likely do not match.",
-    "missing_gnd": "GND is likely not shared across the board and parts.",
-    "led_polarity_or_resistor": "LED direction or current-limiting resistor is likely wrong.",
-    "sensor_power_or_signal": "Sensor VCC, GND, signal pin, or threshold is likely wrong.",
-    "library_missing": "A required library or board package is missing.",
-    "brownout_power": "Power capacity is likely insufficient or unstable.",
-    "buzzer_pin_or_polarity": "Buzzer polarity or output pin is likely wrong.",
-    "unknown": "The evidence is not enough; ask for one more observation.",
+    "usb_port_or_driver": "USBケーブル、ボード選択、ポート認識まわりが怪しいです。",
+    "wrong_pin_mapping": "コードのピン番号と実際の配線先がずれている可能性があります。",
+    "missing_gnd": "GNDが共通になっていない可能性があります。",
+    "led_polarity_or_resistor": "LEDの向き、または直列抵抗まわりが怪しいです。",
+    "sensor_power_or_signal": "センサーのVCC/GND/SIG、またはしきい値が怪しいです。",
+    "library_missing": "必要なライブラリかボードパッケージが入っていない可能性があります。",
+    "brownout_power": "電源容量不足、または瞬間的な電圧低下が起きている可能性があります。",
+    "buzzer_pin_or_polarity": "ブザーの極性、またはtone()に使うピンが怪しいです。",
+    "unknown": "情報が足りないので、まず一つ観察を増やします。",
 }
 
 SAFETY_LABELS = [
