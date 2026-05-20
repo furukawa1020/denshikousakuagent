@@ -2253,6 +2253,7 @@
         stage.value = resolvedStage;
         applyAgentReplyAsNextStep(question, agentReply, resolvedStage);
         box.value = "";
+        await refreshBuildOutputs(question, answer, agentReply, resolvedStage);
         setProgress(agentReply.nextInstruction || structuredMessage || "回答を反映して、次の手順を生成しています。");
         saveDraft();
       }
@@ -2319,6 +2320,30 @@
           console.warn("tutorial/respond fallback", error);
         }
         return buildAgentReply(question, answer, structuredMessage);
+      }
+
+      async function refreshBuildOutputs(question, answer, agentReply, resolvedStage) {
+        try {
+          setProgress("コードと切り分けを更新中");
+          const payload = requestPayload();
+          const neural = await postJson("/api/ai/neural-agents", buildNeuralPayload(payload, {
+            projectId: state.selectedProject,
+            currentStage: resolvedStage,
+            question,
+            answer,
+            interpreted: agentReply?.interpreted || "",
+            nextInstruction: agentReply?.nextInstruction || "",
+            nextStage: agentReply?.nextStage || resolvedStage,
+          }), 50000);
+          renderNeural(neural);
+          renderFirmware(neural);
+          renderDebug(neural);
+          renderSafety(neural);
+          if (state.latest) state.latest.neural = neural;
+        } catch (error) {
+          console.warn("neural refresh failed", error);
+          setProgress("次の質問は進みました。コード更新だけ後で再試行できます。");
+        }
       }
 
       function applyAgentReplyAsNextStep(previousQuestion, reply, resolvedStage) {
@@ -2688,7 +2713,9 @@
         meta.innerHTML = `
           <div class="meta">
             <span class="pill good">${escapeHtml(fw.language || "Arduino C++")}</span>
-            <span class="pill">${escapeHtml(fw.generationMode || "")}</span>
+            <span class="pill">${escapeHtml(fw.variant?.id || "")}</span>
+            <span class="pill">${escapeHtml(fw.board?.label || "")}</span>
+            <span class="pill">${escapeHtml(fw.pinProfile?.id || "")}</span>
             ${fw.staticChecks?.hasSerialDebug ? `<span class="pill good">Serial OK</span>` : `<span class="pill warn">Serial未確認</span>`}
           </div>
         `;
@@ -2749,9 +2776,10 @@
           renderTutorial(tutorial);
 
           const classifiedPayload = {
-            ...payload,
-            projectId: tutorial?.project?.id || selectedProject,
-            text: `${payload.text} projectId ${tutorial?.project?.id || selectedProject} boardClass ${payload.board} pinProfile ${pinProfileFor(payload.board)} firmwareVariant ${variantFor(tutorial?.project?.id || selectedProject)}`,
+            ...buildNeuralPayload(payload, {
+              projectId: tutorial?.project?.id || selectedProject,
+              currentStage: payload.currentStage,
+            }),
           };
 
           setProgress("コード・安全・デバッグ分類を実行中");
@@ -2821,6 +2849,41 @@
           pico: "pico_default",
         };
         return map[board] || "esp32_default";
+      }
+
+      function buildNeuralPayload(payload, context = {}) {
+        const projectId = context.projectId || payload.projectId || state.selectedProject || "desk_pet";
+        const currentStage = context.currentStage || payload.currentStage || document.querySelector("#stage")?.value || "orient";
+        const firmwareVariant = variantFor(projectId);
+        const pinProfile = pinProfileFor(payload.board);
+        const text = [
+          payload.text,
+          `projectId ${projectId}`,
+          `currentStage ${currentStage}`,
+          `boardClass ${payload.board}`,
+          `pinProfile ${pinProfile}`,
+          `firmwareVariant ${firmwareVariant}`,
+          `symptom ${payload.symptom || "none"}`,
+          `inventory ${payload.inventory || ""}`,
+          context.question ? `question ${context.question}` : "",
+          context.answer ? `answer ${context.answer}` : "",
+          context.interpreted ? `interpreted ${context.interpreted}` : "",
+          context.nextInstruction ? `nextInstruction ${context.nextInstruction}` : "",
+          context.nextStage ? `nextStage ${context.nextStage}` : "",
+        ].filter(Boolean).join(" | ");
+        return {
+          ...payload,
+          projectId,
+          currentStage,
+          boardClass: payload.board,
+          pinProfile,
+          firmwareVariant,
+          question: context.question || "",
+          answer: context.answer || "",
+          interpreted: context.interpreted || "",
+          nextStage: context.nextStage || currentStage,
+          text,
+        };
       }
 
       splashSkipButton?.addEventListener("click", closeSplash);
