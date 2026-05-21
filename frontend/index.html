@@ -2330,15 +2330,29 @@
         const resolvedStage = chooseProgressStage(stage.value, answer, question, agentReply);
         agentReply.nextStage = resolvedStage;
         state.lastAgentReply = agentReply;
-        renderInlineAgentReply(agentReply);
         const baseText = intent.value.trim();
         const addition = `次の質問: ${question}\n回答: ${answer}${structuredMessage ? `\n反映: ${structuredMessage}` : ""}\nエージェント返答: ${agentReply.title} ${agentReply.body}${agentReply.nextInstruction ? `\n次の作業: ${agentReply.nextInstruction}` : ""}`;
         intent.value = baseText ? `${baseText}\n\n${addition}` : addition;
         state.lastAnswer = answer;
         state.lastAnsweredQuestion = question;
         stage.value = resolvedStage;
-        applyAgentReplyAsNextStep(question, agentReply, resolvedStage);
-        box.value = "";
+        if (agentReply.tutorialPreview?.tutorial) {
+          const preview = {
+            ...agentReply.tutorialPreview,
+            stage: {
+              ...(agentReply.tutorialPreview.stage || {}),
+              id: resolvedStage,
+            },
+          };
+          if (state.latest) state.latest.tutorial = preview;
+          renderTutorial(preview);
+          renderInlineAgentReply(agentReply);
+        } else {
+          renderInlineAgentReply(agentReply);
+          applyAgentReplyAsNextStep(question, agentReply, resolvedStage);
+        }
+        const nextBox = document.querySelector("#answerBox");
+        if (nextBox) nextBox.value = "";
         await refreshBuildOutputs(question, answer, agentReply, resolvedStage);
         setProgress(agentReply.nextInstruction || structuredMessage || "回答を反映して、次の手順を生成しています。");
         saveDraft();
@@ -2398,6 +2412,7 @@
               interpretedBy: response.interpretedBy || "",
               answerClassifier: response.answerClassifier || null,
               stageClassifier: response.stageClassifier || null,
+              tutorialPreview: response.tutorialPreview || null,
               alignmentScore: response.alignmentScore,
               candidateCount: response.candidateCount,
             };
