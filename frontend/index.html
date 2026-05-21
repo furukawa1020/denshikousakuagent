@@ -1608,7 +1608,35 @@
     </div>
 
     <script>
-      const API_BASE = window.API_BASE || localStorage.getItem("DENSHI_API_BASE") || "";
+      const memoryStorage = new Map();
+
+      function storageGet(key) {
+        try {
+          return window.localStorage?.getItem(key) ?? memoryStorage.get(key) ?? "";
+        } catch {
+          return memoryStorage.get(key) ?? "";
+        }
+      }
+
+      function storageSet(key, value) {
+        memoryStorage.set(key, String(value));
+        try {
+          window.localStorage?.setItem(key, String(value));
+        } catch {
+          // Storage can be blocked in embedded/private contexts; the app should still run.
+        }
+      }
+
+      function storageRemove(key) {
+        memoryStorage.delete(key);
+        try {
+          window.localStorage?.removeItem(key);
+        } catch {
+          // Keep going without persistent storage.
+        }
+      }
+
+      const API_BASE = window.API_BASE || storageGet("DENSHI_API_BASE") || "";
       const PROJECT_LABELS = {
         light_charm: "暗くなると光る小さなお守り",
         desk_pet: "近づくと鳴く机上ペット",
@@ -1967,10 +1995,10 @@
       }
 
       function getSessionId() {
-        let id = localStorage.getItem(SESSION_KEY);
+        let id = storageGet(SESSION_KEY);
         if (!id) {
           id = window.crypto?.randomUUID ? window.crypto.randomUUID() : `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-          localStorage.setItem(SESSION_KEY, id);
+          storageSet(SESSION_KEY, id);
         }
         return id;
       }
@@ -1987,12 +2015,12 @@
           selectedProject: state.selectedProject,
           flow: state.flow,
         };
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+        storageSet(DRAFT_KEY, JSON.stringify(draft));
       }
 
       function restoreDraft() {
         try {
-          const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+          const draft = JSON.parse(storageGet(DRAFT_KEY) || "null");
           if (!draft) return;
           if (draft.intent) document.querySelector("#intent").value = draft.intent;
           if (draft.budget) document.querySelector("#budget").value = draft.budget;
@@ -2007,7 +2035,7 @@
           }
           setProgress("前回の入力を復元しました。続きをそのまま生成できます。");
         } catch {
-          localStorage.removeItem(DRAFT_KEY);
+          storageRemove(DRAFT_KEY);
         }
       }
 
