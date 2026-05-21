@@ -2037,6 +2037,64 @@
         }
       }
 
+      async function postJsonSettled(url, body, timeoutMs = 25000) {
+        try {
+          return { ok: true, value: await postJson(url, body, timeoutMs) };
+        } catch (error) {
+          console.warn(`${url} failed`, error);
+          return { ok: false, error };
+        }
+      }
+
+      function fallbackDiscover(payload) {
+        return {
+          recommendations: [
+            {
+              id: "desk_pet",
+              title: "近づくと鳴く机上ペット",
+              summary: "距離センサー、LED、ブザーで、まず動く反応を作ります。",
+              budgetRange: "3,500〜6,000円",
+              difficulty: "★★☆☆☆",
+            },
+            {
+              id: "light_charm",
+              title: "暗くなると光る小さなお守り",
+              summary: "LEDと光センサーで、最小回路から作品感へ進めます。",
+              budgetRange: "1,500〜3,000円",
+              difficulty: "★☆☆☆☆",
+            },
+            {
+              id: "plant_ping",
+              title: "水やり通知ミニデバイス",
+              summary: "センサー値を読み、しきい値で通知する流れを学びます。",
+              budgetRange: "2,500〜5,500円",
+              difficulty: "★★☆☆☆",
+            },
+          ],
+          intent: payload.text || "",
+        };
+      }
+
+      function fallbackTutorial(projectId = "desk_pet") {
+        return {
+          available: true,
+          project: {
+            id: projectId,
+            title: PROJECT_LABELS[projectId] || "近づくと鳴く机上ペット",
+          },
+          stage: { id: "parts_check", label: "部品確認" },
+          route: { label: "最小構成から" },
+          autonomyScore: 0.62,
+          tutorial: {
+            title: "まず部品とGNDを確認する",
+            nextAction: "手元の部品を一行で書き、最小回路に進む",
+            expectedSignal: "必要な部品が分かる",
+            nextQuestion: "手元にある部品を、分かる範囲で一行で書けますか？",
+            checklist: ["ボード名", "LEDと抵抗", "ブレッドボード", "ジャンパ線"],
+          },
+        };
+      }
+
       function renderProjects(discover, tutorial) {
         const target = document.querySelector("#projects");
         let items = discover?.recommendations || [];
@@ -2758,22 +2816,29 @@
       }
 
       async function run() {
+        if (state.isGenerating) return;
+        state.isGenerating = true;
+        const previousLabel = runButton.textContent;
         runButton.disabled = true;
+        runButton.textContent = "生成中...";
         setStatus("推論中", false);
         setProgress("作品候補を生成中");
         const payload = requestPayload();
         try {
-          const discover = await postJson("/api/discover/intent", { ...payload, useTransformer: true }, 50000);
+          const discoverResult = await postJsonSettled("/api/discover/intent", { ...payload, useTransformer: true }, 25000);
+          const discover = discoverResult.ok ? discoverResult.value : fallbackDiscover(payload);
           const selectedProject = discover?.recommendations?.[0]?.id || "desk_pet";
           state.selectedProject = selectedProject;
 
           setProgress("次の作業を組み立て中");
-          const tutorial = await postJson("/api/tutorial/next", {
+          const tutorialResult = await postJsonSettled("/api/tutorial/next", {
             ...payload,
             projectId: selectedProject,
-          }, 50000);
+          }, 25000);
+          const tutorial = tutorialResult.ok ? tutorialResult.value : fallbackTutorial(selectedProject);
           renderProjects(discover, tutorial);
           renderTutorial(tutorial);
+          state.latest = { discover, tutorial, neural: null, bom: null };
 
           const classifiedPayload = {
             ...buildNeuralPayload(payload, {
@@ -2782,30 +2847,50 @@
             }),
           };
 
-          setProgress("コード・安全・デバッグ分類を実行中");
-          const neural = await postJson("/api/ai/neural-agents", classifiedPayload, 50000);
-          renderNeural(neural);
-          renderFirmware(neural);
-          renderDebug(neural);
-          renderSafety(neural);
-
-          setProgress("部品と予算を推定中");
-          const bom = await postJson("/api/ai/bom/estimator", {
+          setProgress("コード・部品・予算を並列で更新中");
+          const neuralPromise = postJsonSettled("/api/ai/neural-agents", classifiedPayload, 25000);
+          const bomPromise = postJsonSettled("/api/ai/bom/estimator", {
             ...payload,
             projectId: tutorial?.project?.id || selectedProject,
             project: tutorial?.project?.title || payload.text,
-            selectedOption: neural?.firmware?.variant?.id || "",
-          }, 50000);
-          renderBom(bom);
+            selectedOption: variantFor(tutorial?.project?.id || selectedProject),
+          }, 25000);
+          const [neuralResult, bomResult] = await Promise.all([neuralPromise, bomPromise]);
+
+          let neural = null;
+          if (neuralResult.ok) {
+            neural = neuralResult.value;
+            renderNeural(neural);
+            renderFirmware(neural);
+            renderDebug(neural);
+            renderSafety(neural);
+          } else {
+            document.querySelector("#neural").textContent = "コード分類は後で再試行できます。";
+            document.querySelector("#firmwareMeta").textContent = "コード更新待ち";
+            document.querySelector("#code").textContent = "// コード生成APIが混雑しています。もう一度「生成する」を押すと再試行します。";
+            document.querySelector("#debug").textContent = "切り分けは後で再試行できます。";
+            document.querySelector("#safety").textContent = "安全判断は後で再試行できます。";
+          }
+
+          let bom = null;
+          if (bomResult.ok) {
+            bom = bomResult.value;
+            renderBom(bom);
+          } else {
+            document.querySelector("#bom").textContent = "部品・予算推定は後で再試行できます。";
+          }
 
           state.latest = { discover, tutorial, neural, bom };
           setStatus("生成完了", true);
-          setProgress("次の質問に答えると、チュートリアルが先へ進みます");
+          const partial = !discoverResult.ok || !tutorialResult.ok || !neuralResult.ok || !bomResult.ok;
+          setProgress(partial ? "一部は仮表示です。質問には進めます。必要ならもう一度生成できます。" : "次の質問に答えると、チュートリアルが先へ進みます");
         } catch (error) {
           setStatus("エラー", false);
           setProgress(error.name === "AbortError" ? "推論がタイムアウトしました" : String(error.message || error));
         } finally {
+          state.isGenerating = false;
           runButton.disabled = false;
+          runButton.textContent = previousLabel || "生成する";
         }
       }
 
