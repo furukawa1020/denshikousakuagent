@@ -1406,6 +1406,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
                 "candidates": neural.get("candidates"),
             },
         }
+        result.update(tutorial_response_contract(project, question, current_stage, neural_stage, kind, reply, tutorial))
         log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
         return result
 
@@ -1448,6 +1449,7 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
         "answerClassifier": answer_classifier if answer_classifier.get("available") else None,
         "stageClassifier": stage_classifier if stage_classifier.get("available") else None,
     }
+    result.update(tutorial_response_contract(project, question, current_stage, resolved_stage, kind, reply, tutorial))
     log_tutorial_response_event(payload, project, question, answer, current_stage, kind, result, neural)
     return result
 
