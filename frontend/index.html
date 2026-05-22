@@ -2448,7 +2448,7 @@
       }
 
       function applyAgentReplyAsNextStep(previousQuestion, reply, resolvedStage) {
-        const nextQuestion = chooseNextQuestionFromReply(reply, previousQuestion);
+        const nextQuestion = chooseNextQuestionFromReply(reply, previousQuestion, resolvedStage);
         if (!nextQuestion) return;
         state.latestQuestion = nextQuestion;
 
@@ -2482,13 +2482,30 @@
         if (stagePill) stagePill.textContent = stageLabelFor(resolvedStage);
       }
 
-      function chooseNextQuestionFromReply(reply, previousQuestion = "") {
+      function chooseNextQuestionFromReply(reply, previousQuestion = "", resolvedStage = "") {
+        const stageQuestion = defaultQuestionForStage(resolvedStage);
         const candidates = [
           reply?.nextQuestion,
           reply?.nextInstruction,
           reply?.tutorialPreview?.tutorial?.nextQuestion,
+          stageQuestion,
         ].map((item) => String(item || "").trim()).filter(Boolean);
+        if (stageQuestion && resolvedStage !== "minimal_circuit") {
+          const first = candidates[0] || "";
+          if (!first || first === previousQuestion || !first.includes("？")) return stageQuestion;
+        }
         return candidates.find((item) => item !== previousQuestion) || candidates[0] || "";
+      }
+
+      function defaultQuestionForStage(stageId) {
+        const table = {
+          firmware_upload: "Arduino IDEやエディタで、ボード名とポートは選べていますか？",
+          observe_serial: "シリアルモニタに start や sensor の値は表示されていますか？",
+          standard_build: "最小版は動いたので、ブザーや外装を足して作品らしくしますか？",
+          enclosure: "机に置く形として、紙箱やケースに固定できそうですか？",
+          extension: "次に足したい反応は、音・動き・光り方のどれですか？",
+        };
+        return table[stageId] || "";
       }
 
       function expectedSignalForStage(stageId) {
@@ -2715,6 +2732,14 @@
       }
 
       function chooseProgressStage(currentStage, answer, question, agentReply = {}) {
+        const topic = questionTopic(question);
+        if (
+          currentStage === "minimal_circuit" &&
+          ["gnd", "led", "resistor"].includes(topic) &&
+          isPositiveAnswer(answer, agentReply)
+        ) {
+          return "firmware_upload";
+        }
         const neuralStage = agentReply.stageClassifier?.stage || agentReply.nextStage || "";
         const confidence = Number(agentReply.stageClassifier?.confidence ?? agentReply.confidence ?? 0);
         if (neuralStage === "debug_triage" || FLOW_ORDER.includes(neuralStage)) {
