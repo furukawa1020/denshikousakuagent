@@ -2467,6 +2467,10 @@
         updateFlowProgress(question, answer, agentReply);
         const resolvedStage = chooseProgressStage(stage.value, answer, question, agentReply);
         agentReply.nextStage = resolvedStage;
+        if (agentReply.uiPatch) {
+          agentReply.nextQuestion = agentReply.uiPatch.nextQuestion || agentReply.nextQuestion;
+          agentReply.nextInstruction = agentReply.uiPatch.nextAction || agentReply.nextInstruction;
+        }
         state.lastAgentReply = agentReply;
         const baseText = intent.value.trim();
         const addition = `次の質問: ${question}\n回答: ${answer}${structuredMessage ? `\n反映: ${structuredMessage}` : ""}\nエージェント返答: ${agentReply.title} ${agentReply.body}${agentReply.nextInstruction ? `\n次の作業: ${agentReply.nextInstruction}` : ""}`;
@@ -2610,16 +2614,16 @@
         }
 
         const nextActionValue = document.querySelector("[data-next-action]");
-        if (nextActionValue) nextActionValue.textContent = compactText(reply.nextInstruction || nextQuestion, 58);
+        if (nextActionValue) nextActionValue.textContent = compactText(reply.uiPatch?.nextAction || reply.nextInstruction || nextQuestion, 58);
 
         const expectedSignalValue = document.querySelector("[data-expected-signal]");
-        if (expectedSignalValue) expectedSignalValue.textContent = expectedSignalForStage(resolvedStage);
+        if (expectedSignalValue) expectedSignalValue.textContent = reply.uiPatch?.expectedSignal || expectedSignalForStage(resolvedStage);
 
         const stageStrip = document.querySelector("#tutorial .stage-strip");
         if (stageStrip) stageStrip.outerHTML = renderStageStrip(resolvedStage);
 
         const stagePill = document.querySelector("[data-stage-label]");
-        if (stagePill) stagePill.textContent = stageLabelFor(resolvedStage);
+        if (stagePill) stagePill.textContent = reply.uiPatch?.stageLabel || stageLabelFor(resolvedStage);
       }
 
       function chooseNextQuestionFromReply(reply, previousQuestion = "", resolvedStage = "") {
