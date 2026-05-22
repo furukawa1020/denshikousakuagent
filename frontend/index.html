@@ -234,9 +234,13 @@
 
       .actions {
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr auto auto auto;
         gap: 10px;
         align-items: center;
+      }
+
+      .actions .secondary {
+        min-width: 78px;
       }
 
       button.primary,
@@ -1236,6 +1240,14 @@
           width: 100%;
         }
 
+        .actions {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .actions .progress {
+          grid-column: 1 / -1;
+        }
+
         .stage-strip {
           grid-template-columns: 1fr 1fr;
         }
@@ -1502,6 +1514,8 @@
 
           <div class="actions">
             <div class="progress" id="progress">入力して実行できます</div>
+            <button class="secondary" id="backButton" type="button">戻る</button>
+            <button class="secondary" id="resetButton" type="button">最初から</button>
             <button class="primary" id="runButton">生成する</button>
           </div>
         </section>
@@ -1670,6 +1684,7 @@
         lastAgentReply: null,
         guideStep: 0,
         activeGuideTarget: null,
+        history: [],
         flow: {
           inventory: false,
           board: false,
@@ -1763,6 +1778,8 @@
       const statusText = document.querySelector("#statusText");
       const progress = document.querySelector("#progress");
       const runButton = document.querySelector("#runButton");
+      const backButton = document.querySelector("#backButton");
+      const resetButton = document.querySelector("#resetButton");
       const dot = document.querySelector("#dot");
       const helpButton = document.querySelector("#helpButton");
       const splashOverlay = document.querySelector("#splashOverlay");
@@ -2046,6 +2063,126 @@
         });
       }
 
+      function currentSnapshot() {
+        return {
+          intent: document.querySelector("#intent")?.value || "",
+          budget: document.querySelector("#budget")?.value || "",
+          board: document.querySelector("#board")?.value || "",
+          inventory: document.querySelector("#inventory")?.value || "",
+          stage: document.querySelector("#stage")?.value || "orient",
+          symptom: document.querySelector("#symptom")?.value || "none",
+          selectedEntry: state.selectedEntry,
+          selectedProject: state.selectedProject,
+          latestQuestion: state.latestQuestion,
+          lastAnswer: state.lastAnswer,
+          lastAnsweredQuestion: state.lastAnsweredQuestion,
+          lastAgentReply: state.lastAgentReply,
+          latest: state.latest,
+          flow: { ...state.flow },
+          projectsHtml: document.querySelector("#projects")?.innerHTML || "",
+          tutorialHtml: document.querySelector("#tutorial")?.innerHTML || "",
+          neuralHtml: document.querySelector("#neural")?.innerHTML || "",
+          firmwareMetaHtml: document.querySelector("#firmwareMeta")?.innerHTML || "",
+          codeText: document.querySelector("#code")?.textContent || "",
+          debugHtml: document.querySelector("#debug")?.innerHTML || "",
+          safetyHtml: document.querySelector("#safety")?.innerHTML || "",
+          bomHtml: document.querySelector("#bom")?.innerHTML || "",
+          progressText: progress?.textContent || "",
+          statusText: statusText?.textContent || "",
+        };
+      }
+
+      function pushHistory() {
+        state.history.push(currentSnapshot());
+        if (state.history.length > 20) state.history.shift();
+      }
+
+      function restoreSnapshot(snapshot) {
+        if (!snapshot) return;
+        document.querySelector("#intent").value = snapshot.intent || "";
+        document.querySelector("#budget").value = snapshot.budget || "5000";
+        document.querySelector("#board").value = snapshot.board || "esp32";
+        document.querySelector("#inventory").value = snapshot.inventory || "";
+        document.querySelector("#stage").value = snapshot.stage || "orient";
+        document.querySelector("#symptom").value = snapshot.symptom || "none";
+        state.selectedEntry = snapshot.selectedEntry || state.selectedEntry;
+        state.selectedProject = snapshot.selectedProject || "desk_pet";
+        state.latestQuestion = snapshot.latestQuestion || "";
+        state.lastAnswer = snapshot.lastAnswer || "";
+        state.lastAnsweredQuestion = snapshot.lastAnsweredQuestion || "";
+        state.lastAgentReply = snapshot.lastAgentReply || null;
+        state.latest = snapshot.latest || null;
+        state.flow = { ...state.flow, ...(snapshot.flow || {}) };
+        document.querySelector("#projects").innerHTML = snapshot.projectsHtml || `<p class="empty">まだ生成していません。</p>`;
+        document.querySelector("#tutorial").innerHTML = snapshot.tutorialHtml || "入力に合わせて次の一手を出します。";
+        document.querySelector("#neural").innerHTML = snapshot.neuralHtml || "待機中";
+        document.querySelector("#firmwareMeta").innerHTML = snapshot.firmwareMetaHtml || "";
+        document.querySelector("#code").textContent = snapshot.codeText || "// 生成待ち";
+        document.querySelector("#debug").innerHTML = snapshot.debugHtml || "待機中";
+        document.querySelector("#safety").innerHTML = snapshot.safetyHtml || "待機中";
+        document.querySelector("#bom").innerHTML = snapshot.bomHtml || "待機中";
+        setStatus(snapshot.statusText || "待機中", false);
+        setProgress(snapshot.progressText || "戻しました");
+        wireTutorialAnswerControls();
+        saveDraft();
+      }
+
+      function goBackOneStep() {
+        const snapshot = state.history.pop();
+        if (!snapshot) {
+          setProgress("戻れる履歴がまだありません。最初からやり直す場合は「最初から」を押してください。");
+          nudgeMascot("warn", "まだ戻る履歴がありません。");
+          return;
+        }
+        restoreSnapshot(snapshot);
+        nudgeMascot("speaking", "ひとつ前に戻しました。ここからやり直せます。", 4000);
+      }
+
+      function resetToStart() {
+        state.history = [];
+        state.selectedEntry = "かわいいものを作りたい";
+        state.selectedProject = "desk_pet";
+        state.latest = null;
+        state.latestQuestion = "";
+        state.lastAnswer = "";
+        state.lastAnsweredQuestion = "";
+        state.lastAgentReply = null;
+        state.flow = {
+          inventory: false,
+          board: false,
+          gnd: false,
+          led: false,
+          resistor: false,
+          upload: false,
+          serial: false,
+          standard: false,
+          enclosure: false,
+          extension: false,
+        };
+        document.querySelector("#intent").value = "予算5000円。かわいいもの。ESP32、LED、抵抗、ブレッドボードあり。";
+        document.querySelector("#budget").value = "5000";
+        document.querySelector("#board").value = "esp32";
+        document.querySelector("#inventory").value = "ESP32, LED, 220Ω抵抗, ブレッドボード, ジャンパ線, USBケーブル";
+        document.querySelector("#stage").value = "orient";
+        document.querySelector("#symptom").value = "none";
+        document.querySelectorAll("#entryChips .chip").forEach((chip) => {
+          chip.classList.toggle("active", chip.dataset.text === state.selectedEntry);
+        });
+        document.querySelector("#projects").innerHTML = `<p class="empty">まだ生成していません。</p>`;
+        document.querySelector("#tutorial").innerHTML = "入力に合わせて次の一手を出します。";
+        document.querySelector("#neural").innerHTML = "待機中";
+        document.querySelector("#firmwareMeta").innerHTML = "";
+        document.querySelector("#code").textContent = "// 生成待ち";
+        document.querySelector("#debug").innerHTML = "待機中";
+        document.querySelector("#safety").innerHTML = "待機中";
+        document.querySelector("#bom").innerHTML = "待機中";
+        storageRemove(DRAFT_KEY);
+        saveDraft();
+        setStatus("待機中", false);
+        setProgress("最初の状態に戻しました。入力を直して生成できます。");
+        nudgeMascot("speaking", "最初に戻しました。ここからまた作り直せます。", 4500);
+      }
+
       async function postJson(url, body, timeoutMs = 45000) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -2322,6 +2459,7 @@
           return;
         }
 
+        pushHistory();
         const question = state.latestQuestion || state.latest?.tutorial?.tutorial?.nextQuestion || "次の質問";
         const structuredMessage = applyAnswerToStructuredFields(question, answer);
         setProgress("回答を読んで、次の返答を作っています。");
@@ -2886,6 +3024,7 @@
       async function run() {
         if (state.isGenerating) return;
         state.isGenerating = true;
+        pushHistory();
         const previousLabel = runButton.textContent;
         runButton.disabled = true;
         runButton.textContent = "生成中...";
@@ -3086,6 +3225,8 @@
       });
 
       runButton.addEventListener("click", run);
+      backButton?.addEventListener("click", goBackOneStep);
+      resetButton?.addEventListener("click", resetToStart);
       run();
     </script>
   </body>
