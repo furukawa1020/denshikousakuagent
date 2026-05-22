@@ -1902,6 +1902,128 @@ def reply(kind: str, title: str, body: str, next_instruction: str, chips: list[s
     }
 
 
+def tutorial_response_contract(
+    project: MakerProject,
+    previous_question: str,
+    current_stage: str,
+    next_stage: str,
+    kind: str,
+    reply_payload: dict[str, Any],
+    tutorial_preview: dict[str, Any] | None,
+) -> dict[str, Any]:
+    next_question = ""
+    next_action = ""
+    expected_signal = ""
+    if tutorial_preview and tutorial_preview.get("available"):
+        tutorial = tutorial_preview.get("tutorial") or {}
+        next_question = str(tutorial.get("nextQuestion") or "")
+        next_action = str(tutorial.get("nextAction") or "")
+        expected_signal = str(tutorial.get("expectedSignal") or "")
+
+    if not next_question or same_question(next_question, previous_question):
+        next_question = default_question_for_stage(next_stage)
+    if not next_action:
+        next_action = default_action_for_stage(next_stage)
+    if not expected_signal:
+        expected_signal = default_signal_for_stage(next_stage)
+
+    return {
+        "progress": {
+            "projectId": project.id,
+            "fromStage": current_stage,
+            "toStage": next_stage,
+            "advanced": stage_rank(next_stage) > stage_rank(current_stage),
+            "interpreted": kind,
+            "source": "backend_state_contract",
+        },
+        "uiPatch": {
+            "stage": next_stage,
+            "stageLabel": stage_label_for_backend(next_stage),
+            "nextQuestion": next_question,
+            "nextAction": next_action,
+            "expectedSignal": expected_signal,
+            "replyTitle": reply_payload.get("title") or "",
+            "replyBody": reply_payload.get("body") or "",
+            "suggestedChips": reply_payload.get("suggestedChips") or [],
+        },
+    }
+
+
+def stage_rank(stage: str) -> int:
+    try:
+        return PROGRESS_STAGE_ORDER.index(stage)
+    except ValueError:
+        return -1
+
+
+def same_question(left: str, right: str) -> bool:
+    return " ".join(str(left or "").split()) == " ".join(str(right or "").split())
+
+
+def default_question_for_stage(stage: str) -> str:
+    table = {
+        "orient": "今日は、かわいい・便利・人に見せたい、どれに一番近いですか？",
+        "parts_check": "手元にある部品を、分かる範囲で一行で書けますか？",
+        "minimal_circuit": "LED、抵抗、ボードのGNDは同じ基準につながっていますか？",
+        "firmware_upload": "Arduino IDEやエディタで、ボード名とポートは選べていますか？",
+        "observe_serial": "シリアルモニタに start や sensor の値は表示されていますか？",
+        "debug_triage": "いま一番小さい症状は、光らない・鳴らない・値が変わらない・書き込めないのどれですか？",
+        "standard_build": "最小版は動いたので、ブザーや外装を足して作品らしくしますか？",
+        "enclosure": "机に置く形として、紙箱やケースに固定できそうですか？",
+        "extension": "次に足したい反応は、音・動き・光り方のどれですか？",
+        "completion_log": "完成した写真、使った部品、詰まったところを一行で残せますか？",
+    }
+    return table.get(stage, table["parts_check"])
+
+
+def default_action_for_stage(stage: str) -> str:
+    table = {
+        "orient": "候補を3つに絞る",
+        "parts_check": "手元の部品を確認する",
+        "minimal_circuit": "LEDとGNDだけの最小回路を確認する",
+        "firmware_upload": "確認用コードを書き込む",
+        "observe_serial": "シリアル出力を見る",
+        "debug_triage": "動かない原因を一つに絞る",
+        "standard_build": "作品として見せる構成にする",
+        "enclosure": "外装に固定する",
+        "extension": "反応を一つ足す",
+        "completion_log": "完成ログを残す",
+    }
+    return table.get(stage, "次の一手を確認する")
+
+
+def default_signal_for_stage(stage: str) -> str:
+    table = {
+        "orient": "候補が3つに絞られている",
+        "parts_check": "必要部品と不足部品が分かる",
+        "minimal_circuit": "LEDやセンサーの最小反応が確認できる",
+        "firmware_upload": "書き込みが完了する",
+        "observe_serial": "シリアルモニタに値が出る",
+        "debug_triage": "次に見る原因が一つになる",
+        "standard_build": "ブザーや表示など作品らしい反応が足される",
+        "enclosure": "触っても抜けにくくなる",
+        "extension": "次作品につながる変更点が決まる",
+        "completion_log": "次作品推薦に使える記録が残る",
+    }
+    return table.get(stage, "次の状態が分かる")
+
+
+def stage_label_for_backend(stage: str) -> str:
+    table = {
+        "orient": "入口",
+        "parts_check": "部品確認",
+        "minimal_circuit": "最小回路",
+        "firmware_upload": "コード書き込み",
+        "observe_serial": "観察",
+        "debug_triage": "切り分け",
+        "standard_build": "作品化",
+        "enclosure": "外装",
+        "extension": "拡張",
+        "completion_log": "完成ログ",
+    }
+    return table.get(stage, stage or "次の段階")
+
+
 def confidence_for_free_answer(kind: str, question: str, answer: str) -> float:
     if kind in {"confirmed", "negative", "inventory_report", "board_report", "problem_report", "photo_request"}:
         return 0.84
