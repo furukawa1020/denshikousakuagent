@@ -2623,8 +2623,9 @@
       }
 
       function chooseNextQuestionFromReply(reply, previousQuestion = "", resolvedStage = "") {
-        const stageQuestion = defaultQuestionForStage(resolvedStage);
+        const stageQuestion = reply?.uiPatch?.nextQuestion || defaultQuestionForStage(resolvedStage);
         const candidates = [
+          reply?.uiPatch?.nextQuestion,
           reply?.nextQuestion,
           reply?.nextInstruction,
           reply?.tutorialPreview?.tutorial?.nextQuestion,
