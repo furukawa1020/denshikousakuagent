@@ -2551,6 +2551,8 @@
               answerClassifier: response.answerClassifier || null,
               stageClassifier: response.stageClassifier || null,
               tutorialPreview: response.tutorialPreview || null,
+              progress: response.progress || null,
+              uiPatch: response.uiPatch || null,
               alignmentScore: response.alignmentScore,
               candidateCount: response.candidateCount,
             };
@@ -2870,6 +2872,8 @@
       }
 
       function chooseProgressStage(currentStage, answer, question, agentReply = {}) {
+        const backendStage = agentReply.uiPatch?.stage || agentReply.progress?.toStage || "";
+        if (backendStage && FLOW_ORDER.includes(backendStage)) return backendStage;
         const topic = questionTopic(question);
         if (
           currentStage === "minimal_circuit" &&
