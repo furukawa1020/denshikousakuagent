@@ -1952,11 +1952,11 @@ def tutorial_response_contract(
         expected_signal = str(tutorial.get("expectedSignal") or "")
 
     if not next_question or same_question(next_question, previous_question):
-        next_question = default_question_for_stage(next_stage)
+        next_question = clean_default_question_for_stage(next_stage)
     if not next_action:
-        next_action = default_action_for_stage(next_stage)
+        next_action = clean_default_action_for_stage(next_stage)
     if not expected_signal:
-        expected_signal = default_signal_for_stage(next_stage)
+        expected_signal = clean_default_signal_for_stage(next_stage)
 
     return {
         "progress": {
@@ -1969,7 +1969,7 @@ def tutorial_response_contract(
         },
         "uiPatch": {
             "stage": next_stage,
-            "stageLabel": stage_label_for_backend(next_stage),
+            "stageLabel": clean_stage_label_for_backend(next_stage),
             "nextQuestion": next_question,
             "nextAction": next_action,
             "expectedSignal": expected_signal,
