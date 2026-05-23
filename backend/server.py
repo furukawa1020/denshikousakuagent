@@ -1317,6 +1317,36 @@ def tutorial_free_response(payload: dict[str, Any]) -> dict[str, Any]:
     current_stage = str(payload.get("currentStage") or payload.get("stage") or "orient")
     project = get_project(payload.get("projectId"))
     fallback_kind = classify_free_answer(answer)
+    if should_use_fast_tutorial_contract(payload):
+        fallback_next_stage = next_stage_from_free_answer(question, answer, current_stage, fallback_kind, payload)
+        resolved_stage = merge_tutorial_stage(
+            current_stage=current_stage,
+            model_stage="",
+            fallback_stage=fallback_next_stage,
+            kind=fallback_kind,
+        )
+        reply = compose_tutorial_reply(project, question, answer, current_stage, resolved_stage, fallback_kind, payload)
+        result = {
+            "available": True,
+            "model": "TutorialResponseFastContract",
+            "mode": "fast_backend_progress_contract",
+            "projectId": project.id,
+            "question": question,
+            "answer": answer,
+            "interpreted": fallback_kind,
+            "interpretedBy": "fast_contract",
+            "kind": reply["kind"],
+            "title": reply["title"],
+            "body": reply["body"],
+            "nextInstruction": reply["nextInstruction"],
+            "nextStage": resolved_stage,
+            "suggestedChips": reply["suggestedChips"],
+            "confidence": confidence_for_free_answer(fallback_kind, question, answer),
+            "neuralDeferred": True,
+        }
+        result.update(tutorial_response_contract(project, question, current_stage, resolved_stage, fallback_kind, reply, None))
+        log_tutorial_response_event(payload, project, question, answer, current_stage, fallback_kind, result, {"available": False, "reason": "deferred"})
+        return result
     classifier_payload = {
         **payload,
         "projectId": project.id,
