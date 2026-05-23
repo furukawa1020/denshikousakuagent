@@ -24,6 +24,7 @@ HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "8765"))
 STAGE_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "debug_triage", "standard_build", "enclosure", "extension", "completion_log"]
 PROGRESS_STAGE_ORDER = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "enclosure", "extension", "completion_log"]
+SYNC_TUTORIAL_NEURAL = os.environ.get("TUTORIAL_RESPONSE_SYNC", "0") == "1"
 
 
 @dataclass(frozen=True)
