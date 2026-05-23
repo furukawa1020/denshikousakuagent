@@ -1798,6 +1798,60 @@ def classify_free_answer(answer: str) -> str:
     normalized = normalize_answer(answer)
     if not normalized:
         return "empty"
+    if any(token in normalized for token in [
+        "はい",
+        "できた",
+        "できました",
+        "つながっている",
+        "つながっています",
+        "つながった",
+        "接続できた",
+        "接続しました",
+        "同じgnd",
+        "同じgnd列",
+        "抵抗を通って",
+        "gpio側",
+        "長い足",
+        "選べている",
+        "選べています",
+        "表示されています",
+        "値が出ています",
+        "動いた",
+        "光った",
+        "鳴った",
+        "書き込めた",
+        "書き込みできた",
+        "ok",
+        "yes",
+    ]):
+        return "confirmed"
+    if any(token in normalized for token in [
+        "いいえ",
+        "できない",
+        "できません",
+        "つながっていない",
+        "つながってません",
+        "接続していない",
+        "同じじゃない",
+        "違う",
+        "まだ",
+        "無い",
+        "ない",
+        "表示されない",
+        "値が出ない",
+        "動かない",
+        "光らない",
+        "鳴らない",
+        "書き込めない",
+        "no",
+    ]):
+        return "negative"
+    if any(token in normalized for token in ["分からない", "わからない", "不明", "自信ない", "たぶん", "？", "?"]):
+        return "unknown"
+    if any(token in normalized for token in ["写真", "画像", "撮影", "カメラ", "photo", "camera", "pic"]):
+        return "photo_request"
+    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "止まる", "止まった", "反応しない"]):
+        return "problem_report"
     if any(token in normalized for token in ["写真", "画像", "撮影", "カメラ", "photo", "camera", "pic"]):
         return "photo_request"
     if any(token in normalized for token in ["分からない", "わからない", "不明", "知らない", "自信ない", "自信がない", "不安", "unknown", "?" , "？"]):
@@ -2046,6 +2100,78 @@ def stage_label_for_backend(stage: str) -> str:
         "minimal_circuit": "最小回路",
         "firmware_upload": "コード書き込み",
         "observe_serial": "観察",
+        "debug_triage": "切り分け",
+        "standard_build": "作品化",
+        "enclosure": "外装",
+        "extension": "拡張",
+        "completion_log": "完成ログ",
+    }
+    return table.get(stage, stage or "次の段階")
+
+
+def should_use_fast_tutorial_contract(payload: dict[str, Any]) -> bool:
+    if payload.get("forceNeural") is True or payload.get("syncNeural") is True:
+        return False
+    if os.environ.get("TUTORIAL_RESPONSE_FAST") == "1":
+        return True
+    return not SYNC_TUTORIAL_NEURAL
+
+
+def clean_default_question_for_stage(stage: str) -> str:
+    table = {
+        "orient": "今日は、かわいい・便利・人に見せたいのどれに一番近いですか？",
+        "parts_check": "手元にある部品を、分かる範囲で一行で書けますか？",
+        "minimal_circuit": "LEDの長い足は、抵抗を通ってGPIO側につながっていますか？",
+        "firmware_upload": "Arduino IDEなどで、ボード名とポートは選べていますか？",
+        "observe_serial": "シリアルモニタに start や sensor の値は表示されていますか？",
+        "debug_triage": "いま一番近い症状は、光らない・鳴らない・値が変わらない・書き込めないのどれですか？",
+        "standard_build": "最小構成は動いたので、ブザーや外装を足して作品らしくしますか？",
+        "enclosure": "机に置く形として、紙箱やケースに固定できそうですか？",
+        "extension": "次に足したい反応は、音・動き・光り方のどれですか？",
+        "completion_log": "完成した写真、使った部品、詰まったところを一行で残せますか？",
+    }
+    return table.get(stage, table["parts_check"])
+
+
+def clean_default_action_for_stage(stage: str) -> str:
+    table = {
+        "orient": "作りたい雰囲気を3つに絞る",
+        "parts_check": "手元の部品を確認する",
+        "minimal_circuit": "LED、抵抗、GNDの最小回路を確認する",
+        "firmware_upload": "確認用コードを書き込む",
+        "observe_serial": "シリアル出力を見る",
+        "debug_triage": "動かない原因を一つに絞る",
+        "standard_build": "作品として見せる構成にする",
+        "enclosure": "外装に固定する",
+        "extension": "反応を一つ足す",
+        "completion_log": "完成ログを残す",
+    }
+    return table.get(stage, "次の一手を確認する")
+
+
+def clean_default_signal_for_stage(stage: str) -> str:
+    table = {
+        "orient": "候補が3つに絞られている",
+        "parts_check": "必要部品と不足部品が分かる",
+        "minimal_circuit": "LEDとGNDの最小反応が確認できる",
+        "firmware_upload": "書き込みが完了する",
+        "observe_serial": "シリアルモニタに値が出る",
+        "debug_triage": "次に見る原因が一つになる",
+        "standard_build": "ブザーや表示など作品らしい反応が足される",
+        "enclosure": "触っても抜けにくくなる",
+        "extension": "次作品につながる変更点が決まる",
+        "completion_log": "次作品推薦に使える記録が残る",
+    }
+    return table.get(stage, "次の状態が分かる")
+
+
+def clean_stage_label_for_backend(stage: str) -> str:
+    table = {
+        "orient": "入口",
+        "parts_check": "部品確認",
+        "minimal_circuit": "最小回路",
+        "firmware_upload": "コード書き込み",
+        "observe_serial": "動作観察",
         "debug_triage": "切り分け",
         "standard_build": "作品化",
         "enclosure": "外装",
