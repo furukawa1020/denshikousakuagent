@@ -36,7 +36,13 @@ def main() -> None:
     for index in range(args.samples):
         scenario = scenarios[index % len(scenarios)]
         payload = make_payload(scenario, rng)
-        source = build_source(payload)
+        answer_payload = {
+            **payload,
+            "interpretedKind": "",
+            "fallbackStage": "",
+            "tutorialTopic": "",
+        }
+        source = build_source(answer_payload)
         answer_rows.append({
             "source": source,
             "kind": scenario["kind"],
@@ -46,7 +52,7 @@ def main() -> None:
             "generator": "clean_japanese_hard_v1",
         })
         stage_rows.append({
-            "source": source,
+            "source": build_source(payload),
             "stage": scenario["nextStage"],
             "nextStage": scenario["nextStage"],
             "target": f"stage:{scenario['nextStage']}",
