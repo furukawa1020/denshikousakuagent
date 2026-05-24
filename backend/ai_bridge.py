@@ -19,9 +19,9 @@ DEFAULT_CIRCUIT_VALIDATOR_MODEL_DIR = ROOT / "runs" / "circuit_validator"
 DEFAULT_INVENTORY_MATCHER_MODEL_DIR = ROOT / "runs" / "inventory_matcher"
 DEFAULT_TUTORIAL_AGENT_MODEL_DIR = ROOT / "runs" / "tutorial_agent"
 DEFAULT_TUTORIAL_RESPONSE_MODEL_DIR = Path(os.environ.get("TUTORIAL_RESPONSE_MODEL_DIR", str(ROOT / "runs" / "tutorial_response_context_v6_full")))
-DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_context_v8_clean")))
-DEFAULT_TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_context_v8_clean")))
-DEFAULT_TUTORIAL_STAGE_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_STAGE_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_stage_classifier_autonomy_v3_clean")))
+DEFAULT_TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_context_v9_clean")))
+DEFAULT_TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_PROGRESS_ANSWER_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_answer_classifier_context_v9_clean")))
+DEFAULT_TUTORIAL_STAGE_CLASSIFIER_MODEL_DIR = Path(os.environ.get("TUTORIAL_STAGE_CLASSIFIER_MODEL_DIR", str(ROOT / "runs" / "tutorial_stage_classifier_autonomy_v4_clean")))
 FALLBACK_TUTORIAL_RESPONSE_MODEL_DIRS = [
     ROOT / "runs" / "tutorial_response_context_v5_full",
     ROOT / "runs" / "tutorial_response_context_v5",
