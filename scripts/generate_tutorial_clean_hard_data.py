@@ -23,6 +23,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--answer-output", default="runtime/tutorial_answer_classifier_clean_hard_v1.jsonl")
     parser.add_argument("--stage-output", default="runtime/tutorial_stage_classifier_clean_hard_v1.jsonl")
     parser.add_argument("--samples", type=int, default=36000)
+    parser.add_argument("--answer-focus-output", default="")
+    parser.add_argument("--answer-focus-samples", type=int, default=0)
     parser.add_argument("--seed", type=int, default=80523)
     return parser.parse_args()
 
@@ -64,12 +66,20 @@ def main() -> None:
     rng.shuffle(stage_rows)
     write_jsonl(args.answer_output, answer_rows)
     write_jsonl(args.stage_output, stage_rows)
+    if args.answer_focus_output and args.answer_focus_samples > 0:
+        focused_rows = make_answer_focus_records(args.answer_focus_samples, rng)
+        write_jsonl(args.answer_focus_output, focused_rows)
+    else:
+        focused_rows = []
     print({
         "event": "clean_hard_data_generated",
         "answer_output": args.answer_output,
         "stage_output": args.stage_output,
+        "answer_focus_output": args.answer_focus_output,
         "records": len(answer_rows),
+        "answer_focus_records": len(focused_rows),
         "answer_counts": count(answer_rows, "kind"),
+        "answer_focus_counts": count(focused_rows, "kind") if focused_rows else {},
         "stage_counts": count(stage_rows, "stage"),
     })
 
@@ -222,6 +232,119 @@ def build_scenarios() -> list[dict[str, Any]]:
             ["写真で見てほしい", "画像を送ります", "配線写真を確認してください", "カメラで撮りました"],
         ),
     ]
+
+
+def make_answer_focus_records(samples: int, rng: random.Random) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    labels = list(ANSWER_FOCUS.keys())
+    for index in range(samples):
+        kind = labels[index % len(labels)]
+        item = rng.choice(ANSWER_FOCUS[kind])
+        project_id = rng.choice(PROJECT_IDS)
+        payload = {
+            "projectId": project_id,
+            "projectTitle": PROJECTS[project_id],
+            "currentStage": item["stage"],
+            "tutorialState": item.get("state", {}),
+            "question": rng.choice(item["questions"]),
+            "answer": mutate_focus_answer(rng.choice(item["answers"]), rng),
+            "inventory": rng.choice(["", "ESP32 LED 抵抗 ブレッドボード", "Arduino LED 抵抗", "M5Stack Groveケーブル"]),
+            "budget": rng.choice(["", "3000", "5000"]),
+            "symptom": item.get("symptom", "none"),
+            "skill": "",
+            "previous": "",
+            "lastQuestion": "",
+            "lastAnswer": "",
+            "lastInterpreted": "",
+            "interpretedKind": "",
+            "fallbackStage": "",
+            "tutorialTopic": "",
+        }
+        rows.append({
+            "source": build_source(payload),
+            "kind": kind,
+            "target": kind,
+            "feedback": "fix",
+            "hardReason": f"answer_focus_{kind}",
+            "generator": "clean_japanese_answer_focus_v1",
+        })
+    rng.shuffle(rows)
+    return rows
+
+
+def mutate_focus_answer(answer: str, rng: random.Random) -> str:
+    prefix = rng.choice(["", "", "", "今は、", "見た感じ、", "確認したら、"])
+    suffix = rng.choice(["", "", "", "です", "でした", "と思います"])
+    return f"{prefix}{answer}{suffix}"
+
+
+ANSWER_FOCUS: dict[str, list[dict[str, Any]]] = {
+    "confirmed": [
+        {
+            "stage": "minimal_circuit",
+            "questions": ["LEDの長い足は、抵抗を通ってGPIO側につながっていますか？", "GNDは同じGND列につながっていますか？"],
+            "answers": ["はい", "できました", "つながっています", "抵抗を通っています", "同じGND列です", "光りました"],
+            "state": {"gnd": True, "led": True, "resistor": True},
+        },
+        {
+            "stage": "observe_serial",
+            "questions": ["シリアルモニタに start や sensor の値は表示されていますか？"],
+            "answers": ["start と出ています", "値が出ています", "数字が変わります", "ログが見えます"],
+            "state": {"firmware": True, "serial": True},
+        },
+    ],
+    "negative": [
+        {
+            "stage": "minimal_circuit",
+            "questions": ["LEDの長い足は、抵抗を通ってGPIO側につながっていますか？", "GNDは同じGND列につながっていますか？"],
+            "answers": ["いいえ", "まだです", "つながっていません", "抵抗がありません", "違う列かもしれません", "光りません"],
+            "state": {"gnd": False, "led": False, "resistor": False},
+        },
+    ],
+    "unknown": [
+        {
+            "stage": "minimal_circuit",
+            "questions": ["LEDの長い足は、抵抗を通ってGPIO側につながっていますか？", "GNDは同じGND列につながっていますか？"],
+            "answers": ["わかりません", "分かりません", "自信ないです", "たぶん合ってます", "見方がわかりません", "不安です"],
+            "state": {"gnd": False, "led": False, "resistor": False},
+        },
+    ],
+    "photo_request": [
+        {
+            "stage": "minimal_circuit",
+            "questions": ["配線が不安なら写真で確認できます。写真を撮れますか？"],
+            "answers": ["写真で見てください", "画像を送ります", "配線写真を確認してほしい", "カメラで撮ります"],
+        },
+    ],
+    "problem_report": [
+        {
+            "stage": "firmware_upload",
+            "questions": ["Arduino IDEなどで、ボード名とポートは選べていますか？", "確認用コードを書き込めましたか？"],
+            "answers": ["COMポートが出ません", "書き込めません", "Failed to connect と出ます", "checkpoint loaded で止まります", "ボードが認識されません"],
+            "symptom": "upload_failed",
+        },
+        {
+            "stage": "observe_serial",
+            "questions": ["シリアルモニタに start や sensor の値は表示されていますか？"],
+            "answers": ["何も出ません", "値が出ません", "真っ白です", "0のままです", "文字化けしています", "反応しません"],
+            "symptom": "serial_problem",
+        },
+    ],
+    "inventory_report": [
+        {
+            "stage": "parts_check",
+            "questions": ["手元にある部品を、分かる範囲で一行で書けますか？"],
+            "answers": ["ESP32、LED、抵抗、ブレッドボードがあります", "ArduinoとLEDとジャンパ線があります", "センサー、LED、ボードがあります"],
+        },
+    ],
+    "board_report": [
+        {
+            "stage": "parts_check",
+            "questions": ["使うボードは Arduino、ESP32、M5Stack、Pico のどれですか？"],
+            "answers": ["ESP32です", "Arduino Unoです", "Picoです", "M5Stackです", "micro:bitです"],
+        },
+    ],
+}
 
 
 def scenario(
