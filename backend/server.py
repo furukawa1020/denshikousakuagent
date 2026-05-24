@@ -1495,6 +1495,9 @@ def resolve_free_answer_kind(answer_classifier: dict[str, Any], fallback_kind: s
     except (TypeError, ValueError):
         confidence = 0.0
 
+    if fallback_kind in {"confirmed", "negative", "unknown", "problem_report", "photo_request"} and neural_kind != fallback_kind:
+        return fallback_kind, "fallback_explicit_answer_guard"
+
     if confidence >= 0.68 and neural_kind:
         return neural_kind, "neural_answer_classifier"
 
@@ -1536,6 +1539,13 @@ def autonomous_stage_decision(
         neural_confidence = float(stage_classifier.get("confidence") or 0.0)
     except (TypeError, ValueError):
         neural_confidence = 0.0
+    fallback_rank = stage_rank(fallback_stage)
+    current_rank = stage_rank(current_stage)
+    neural_rank = stage_rank(neural_stage)
+    if fallback_stage == "debug_triage" and kind in {"negative", "unknown", "problem_report", "photo_request"}:
+        return fallback_stage
+    if fallback_rank > current_rank and neural_rank <= current_rank:
+        return fallback_stage
     if stage_classifier.get("available") and neural_stage in STAGE_ORDER and neural_confidence >= 0.52:
         return neural_stage
     return merge_tutorial_stage(
@@ -1846,11 +1856,11 @@ def classify_free_answer(answer: str) -> str:
         "no",
     ]):
         return "negative"
-    if any(token in normalized for token in ["分からない", "わからない", "不明", "自信ない", "たぶん", "？", "?"]):
+    if any(token in normalized for token in ["分からない", "分かりません", "わからない", "わかりません", "不明", "自信ない", "たぶん", "？", "?"]):
         return "unknown"
     if any(token in normalized for token in ["写真", "画像", "撮影", "カメラ", "photo", "camera", "pic"]):
         return "photo_request"
-    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "止まる", "止まった", "反応しない"]):
+    if any(token in normalized for token in ["エラー", "error", "exception", "failed", "失敗", "止まる", "止まった", "反応しない", "comポートが出ません", "ポートが出ません", "何も出ません", "値が出ません", "書き込めません", "認識されません"]):
         return "problem_report"
     if any(token in normalized for token in ["写真", "画像", "撮影", "カメラ", "photo", "camera", "pic"]):
         return "photo_request"
@@ -1893,6 +1903,8 @@ def parse_tutorial_state(payload: dict[str, Any]) -> dict[str, bool]:
 def next_stage_from_free_answer(question: str, answer: str, current_stage: str, kind: str, payload: dict[str, Any] | None = None) -> str:
     lowered_question = question.lower()
     tutorial_state = parse_tutorial_state(payload or {})
+    if kind in {"problem_report", "photo_request"}:
+        return "debug_triage"
     if kind == "confirmed" and current_stage == "extension":
         return "completion_log"
     if kind == "confirmed" and current_stage == "enclosure":
@@ -1919,8 +1931,6 @@ def next_stage_from_free_answer(question: str, answer: str, current_stage: str, 
         return "extension" if kind == "confirmed" else "enclosure"
     if "拡張" in question or "ブザー" in question or "サーボ" in question or "音" in question or "ログ" in question or "完成" in question:
         return "completion_log" if kind == "confirmed" else "extension"
-    if kind in {"problem_report", "photo_request"}:
-        return "debug_triage"
     if kind == "confirmed":
         order = ["orient", "parts_check", "minimal_circuit", "firmware_upload", "observe_serial", "standard_build", "enclosure", "extension", "completion_log"]
         if current_stage in order and order.index(current_stage) < len(order) - 1:
